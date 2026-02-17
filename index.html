@@ -812,10 +812,276 @@
                 touch-action: manipulation;
             }
         }
+
+        /* ========================
+           AUTH SCREEN
+        ======================== */
+        #auth-screen {
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        #auth-screen.visible {
+            display: flex;
+        }
+
+        .auth-card {
+            background: var(--surface-2);
+            backdrop-filter: blur(var(--blur-amount));
+            -webkit-backdrop-filter: blur(var(--blur-amount));
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+            padding: 40px 32px;
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .auth-logo {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .auth-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text-primary);
+            text-align: center;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, #fff 0%, rgba(139, 92, 246, 0.9) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .auth-subtitle {
+            font-size: 14px;
+            color: var(--text-tertiary);
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            background: var(--surface-1);
+            border-radius: 14px;
+            padding: 4px;
+            margin-bottom: 24px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .auth-tab.active {
+            background: var(--accent-primary);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+        }
+
+        .auth-error {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #fca5a5;
+            font-size: 14px;
+            margin-bottom: 16px;
+            text-align: center;
+            display: none;
+        }
+
+        .auth-error.visible { display: block; }
+
+        .btn-logout {
+            width: 100%;
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.08);
+            color: #fca5a5;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-logout:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        /* Bouncing dots loader */
+        .auth-dots {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+            margin-right: 6px;
+        }
+        .auth-dots span {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.85);
+            display: inline-block;
+            animation: authBounce 0.9s infinite ease-in-out;
+        }
+        .auth-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .auth-dots span:nth-child(3) { animation-delay: 0.30s; }
+        @keyframes authBounce {
+            0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+            40%            { transform: translateY(-5px); opacity: 1; }
+        }
+
+        /* Success toast */
+        .auth-success-toast {
+            position: fixed;
+            top: 28px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-80px);
+            z-index: 9999;
+            background: rgba(15, 15, 35, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(139, 92, 246, 0.55);
+            border-radius: 16px;
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(139,92,246,0.15) inset;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .auth-success-toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        .auth-success-toast .toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .auth-success-toast .toast-text {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .auth-success-toast .toast-sub {
+            font-size: 12px;
+            color: rgba(255,255,255,0.55);
+            margin-top: 1px;
+        }
+
+        /* Password field wrapper */
+        .password-field-wrap {
+            position: relative;
+        }
+        .password-field-wrap .input-glass {
+            padding-left: 46px;
+        }
+        .pw-toggle {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            color: rgba(255,255,255,0.45);
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .pw-toggle:hover { color: rgba(255,255,255,0.85); }
+        .pw-toggle svg { width: 18px; height: 18px; }
     </style>
 </head>
 <body>
-    <div id="app" class="max-w-md mx-auto pb-20 pt-6 px-4 relative">
+    <!-- Success Toast -->
+    <div id="authSuccessToast" class="auth-success-toast">
+        <div class="toast-icon">✅</div>
+        <div>
+            <div class="toast-text">ההרשמה בוצעה בהצלחה!</div>
+            <div class="toast-sub">ברוך הבא ל-CalorieTrack IL</div>
+        </div>
+    </div>
+
+    <!-- Auth Screen (shown when not logged in) -->
+    <div id="auth-screen" class="hidden" style="background: var(--bg-primary);">
+        <div class="auth-card">
+            <div class="auth-logo">🔥</div>
+            <div class="auth-title">CalorieTrack IL</div>
+            <div class="auth-subtitle">עקוב אחר התזונה שלך בצורה חכמה</div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">כניסה</button>
+                <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">הרשמה</button>
+            </div>
+
+            <div id="authError" class="auth-error"></div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">אימייל</label>
+                    <input type="email" id="authEmail" class="input-glass" placeholder="your@email.com" dir="ltr">
+                </div>
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">סיסמה</label>
+                    <div class="password-field-wrap">
+                        <input type="password" id="authPassword" class="input-glass" placeholder="לפחות 6 תווים" dir="ltr">
+                        <button type="button" class="pw-toggle" onclick="togglePwVisibility('authPassword', this)" tabindex="-1">
+                            <svg id="authPasswordEyeIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="authConfirmDiv" class="hidden">
+                    <label class="text-sm text-white opacity-70 mb-1 block">אימות סיסמה</label>
+                    <div class="password-field-wrap">
+                        <input type="password" id="authConfirm" class="input-glass" placeholder="חזור על הסיסמה" dir="ltr">
+                        <button type="button" class="pw-toggle" onclick="togglePwVisibility('authConfirm', this)" tabindex="-1">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button id="authBtn" onclick="handleAuth()" class="btn-primary w-full mt-2" style="margin-top:8px;">
+                    כניסה
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App (shown when logged in) -->
+    <div id="app" class="max-w-md mx-auto pb-20 pt-6 px-4 relative hidden">
         <!-- Settings Icon (Top Left) -->
         <div class="absolute top-6 left-4 z-50">
             <button onclick="showSettings()" class="glass-card p-3 rounded-full text-white hover:scale-110 transition-all">
@@ -1170,6 +1436,20 @@
                 </div>
 
                 <div class="space-y-4">
+                    <!-- Account Info -->
+                    <div class="glass-card p-6">
+                        <h3 class="text-xl font-bold text-white mb-3">החשבון שלי</h3>
+                        <div class="flex items-center gap-3 mb-4">
+                            <div style="width:40px;height:40px;border-radius:50%;background:var(--accent-primary);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">👤</div>
+                            <div>
+                                <div class="text-white text-sm opacity-60">מחובר כ:</div>
+                                <div id="settingsUserEmail" class="text-white font-semibold text-sm" dir="ltr">—</div>
+                            </div>
+                        </div>
+                        <button onclick="handleLogout()" class="btn-logout">
+                            <span>🚪</span> יציאה מהחשבון
+                        </button>
+                    </div>
                     <!-- Current Weight Tracker -->
                     <div class="glass-card p-6">
                         <h3 class="text-xl font-bold text-white mb-4">מעקב משקל נוכחי</h3>
@@ -1558,14 +1838,14 @@
     </style>
 
     <script>
-        console.log("🔥 CalorieTrack IL - Supabase Version 2.0 - FRESH");
+        console.log("🔥 CalorieTrack IL - Supabase Version 3.0 - Multi-User Auth");
         // ========================
         // SUPABASE CONFIGURATION
         // ========================
         const SUPABASE_URL = 'https://hxzcuhrrfgtyencumilp.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4emN1aHJyZmd0eWVuY3VtaWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDA0MTYsImV4cCI6MjA4NjQ3NjQxNn0.fKGBmunJi4Y-pyBLmuMLj4QWyvE6Xyu9tlWzARsiYZQ';
         
-        // Initialize Supabase client (with safety check)
+        // Initialize Supabase client
         let supabaseClient = null;
         if (typeof window.supabase !== 'undefined' && 
             SUPABASE_URL !== 'YOUR_SUPABASE_URL_HERE' && 
@@ -1573,18 +1853,16 @@
             try {
                 supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 console.log('✅ Supabase connected successfully');
-                console.log('📡 Connected to:', SUPABASE_URL);
             } catch (error) {
-                console.warn('⚠️ Supabase initialization failed, using LocalStorage fallback:', error);
+                console.warn('⚠️ Supabase initialization failed:', error);
             }
-        } else {
-            console.log('ℹ️ Supabase not configured, using LocalStorage');
-            console.log('Debug - window.supabase exists:', typeof window.supabase !== 'undefined');
-            console.log('Debug - URL:', SUPABASE_URL);
         }
-        
-        // Default user ID (guest user)
-        const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
+
+        // Currently authenticated user (replaces getUserId())
+        let currentUser = null;
+        function getUserId() {
+            return currentUser?.id || null;
+        }
         
         // ========================
         // GEMINI AI CONFIGURATION
@@ -1634,16 +1912,153 @@
         };
 
         // Initialize
+        // ========================
+        // AUTH FUNCTIONS
+        // ========================
+
+        let currentAuthTab = 'login';
+
+        function switchAuthTab(tab) {
+            currentAuthTab = tab;
+            document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+            document.getElementById('tabSignup').classList.toggle('active', tab === 'signup');
+            document.getElementById('authBtn').textContent = tab === 'login' ? 'כניסה' : 'הרשמה';
+            document.getElementById('authConfirmDiv').classList.toggle('hidden', tab === 'login');
+            clearAuthError();
+        }
+
+        function showAuthError(msg) {
+            const el = document.getElementById('authError');
+            el.textContent = msg;
+            el.classList.add('visible');
+        }
+
+        function clearAuthError() {
+            const el = document.getElementById('authError');
+            el.textContent = '';
+            el.classList.remove('visible');
+        }
+
+        function togglePwVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            // Swap eye / eye-off icon
+            btn.querySelector('svg').innerHTML = isHidden
+                ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>`
+                : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>`;
+            btn.style.color = isHidden ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.45)';
+        }
+
+        function setAuthBtnLoading(loading) {
+            const btn = document.getElementById('authBtn');
+            if (loading) {
+                btn.disabled = true;
+                btn.innerHTML = `מתחבר<span class="auth-dots"><span></span><span></span><span></span></span>`;
+            } else {
+                btn.disabled = false;
+                btn.textContent = currentAuthTab === 'login' ? 'כניסה' : 'הרשמה';
+            }
+        }
+
+        let toastTimer = null;
+        function showSuccessToast(text = 'ההרשמה בוצעה בהצלחה!', sub = 'ברוך הבא ל-CalorieTrack IL') {
+            const toast = document.getElementById('authSuccessToast');
+            toast.querySelector('.toast-text').textContent = text;
+            toast.querySelector('.toast-sub').textContent = sub;
+            toast.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+        }
+
+        async function handleAuth() {
+            const email = document.getElementById('authEmail').value.trim();
+            const password = document.getElementById('authPassword').value;
+            clearAuthError();
+
+            if (!email || !password) { showAuthError('נא למלא אימייל וסיסמה'); return; }
+            if (password.length < 6) { showAuthError('הסיסמה חייבת להכיל לפחות 6 תווים'); return; }
+
+            if (currentAuthTab === 'signup') {
+                const confirm = document.getElementById('authConfirm').value;
+                if (password !== confirm) { showAuthError('הסיסמאות אינן תואמות'); return; }
+            }
+
+            setAuthBtnLoading(true);
+
+            try {
+                if (currentAuthTab === 'login') {
+                    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+                    // onAuthStateChange handles the transition
+                } else {
+                    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                    if (error) throw error;
+                    if (data.user && !data.session) {
+                        // Email confirmation required
+                        setAuthBtnLoading(false);
+                        showAuthError('נשלח אימייל אימות — אנא אמת את כתובתך');
+                        return;
+                    }
+                    // Signed up AND auto-confirmed → show toast before transition
+                    showSuccessToast('ההרשמה בוצעה בהצלחה!', 'ברוך הבא ל-CalorieTrack IL 🎉');
+                    // onAuthStateChange will fire and call showApp + init
+                }
+            } catch (error) {
+                const msg = error.message?.includes('Invalid login')    ? 'אימייל או סיסמה שגויים' :
+                            error.message?.includes('already registered') ? 'כתובת האימייל כבר רשומה' :
+                            error.message || 'שגיאה לא ידועה';
+                showAuthError(msg);
+                setAuthBtnLoading(false);
+            }
+        }
+
+        // Allow Enter key in auth fields
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !document.getElementById('auth-screen').classList.contains('hidden')) {
+                handleAuth();
+            }
+        });
+
+        async function handleLogout() {
+            if (!confirm('האם אתה בטוח שברצונך לצאת?')) return;
+            await supabaseClient.auth.signOut();
+        }
+
+        function showApp() {
+            const authEl = document.getElementById('auth-screen');
+            const appEl  = document.getElementById('app');
+            authEl.style.display = 'none';
+            authEl.classList.remove('visible');
+            appEl.style.display  = 'block';
+            console.log('✅ showApp: auth hidden, app visible');
+        }
+
+        function showAuthScreen() {
+            const authEl = document.getElementById('auth-screen');
+            const appEl  = document.getElementById('app');
+            appEl.style.display  = 'none';
+            authEl.style.display = 'flex';
+            authEl.classList.add('visible');
+            console.log('✅ showAuthScreen: app hidden, auth visible');
+            // Reset app state for next login
+            appState.todayData   = { calories: 0, steps: 0, water: 0, protein: 0, meals: [] };
+            appState.savedMeals  = [];
+        }
+
         async function init() {
             await loadState();
-            checkDateChange(); // Check if date changed and reset if needed
+            await checkDateChange();
             initCharts();
             renderSavedMeals();
             renderIconSelector();
-            renderTodayMeals(); // Add this to render meals on load
+            renderTodayMeals();
             updateHomeScreen();
-            syncTodayToWeekly(); // Sync current data on load
+            syncTodayToWeekly();
             updateWeeklyChart();
+            // Show user email in settings
+            const emailEl = document.getElementById('settingsUserEmail');
+            if (emailEl && currentUser) emailEl.textContent = currentUser.email;
         }
 
         // ========================
@@ -1652,12 +2067,14 @@
         
         // Load all data from Supabase
         async function loadState() {
+            const userId = getUserId();
+            if (!userId) { console.warn('loadState: no user'); return; }
             try {
                 // Load profile (settings)
                 const { data: profile, error: profileError } = await supabaseClient
                     .from('profiles')
                     .select('*')
-                    .eq('user_id', DEFAULT_USER_ID)
+                    .eq('user_id', getUserId())
                     .single();
                 
                 if (profile) {
@@ -1677,7 +2094,7 @@
                 const { data: meals, error: mealsError } = await supabaseClient
                     .from('saved_meals')
                     .select('*')
-                    .eq('user_id', DEFAULT_USER_ID)
+                    .eq('user_id', getUserId())
                     .order('position', { ascending: true });
                 
                 if (meals) {
@@ -1696,7 +2113,7 @@
                 const { data: todayLog, error: logError } = await supabaseClient
                     .from('daily_logs')
                     .select('*')
-                    .eq('user_id', DEFAULT_USER_ID)
+                    .eq('user_id', getUserId())
                     .eq('date', today)
                     .single();
                 
@@ -1733,7 +2150,7 @@
             const { data, error } = await supabaseClient
                 .from('profiles')
                 .insert([{
-                    user_id: DEFAULT_USER_ID,
+                    user_id: getUserId(),
                     daily_calorie_goal: 2000,
                     current_weight: 70,
                     height: null,
@@ -1752,7 +2169,7 @@
             const { data, error } = await supabaseClient
                 .from('daily_logs')
                 .insert([{
-                    user_id: DEFAULT_USER_ID,
+                    user_id: getUserId(),
                     date: today,
                     total_calories: 0,
                     protein: 0,
@@ -1776,7 +2193,7 @@
             const { data: logs, error } = await supabaseClient
                 .from('daily_logs')
                 .select('*')
-                .eq('user_id', DEFAULT_USER_ID)
+                .eq('user_id', getUserId())
                 .gte('date', startDate.toISOString().split('T')[0])
                 .order('date', { ascending: true });
             
@@ -1823,7 +2240,7 @@
                 const { data, error } = await supabaseClient
                     .from('profiles')
                     .upsert({
-                        user_id: DEFAULT_USER_ID,
+                        user_id: getUserId(),
                         daily_calorie_goal: appState.settings.dailyGoal,
                         current_weight: appState.settings.currentWeight,
                         height: appState.settings.height,
@@ -1857,7 +2274,7 @@
                 console.log('   Saving for date:', today);
                 
                 const dataToSave = {
-                    user_id: DEFAULT_USER_ID,
+                    user_id: getUserId(),
                     date: today,
                     total_calories: appState.todayData.calories,
                     protein: appState.todayData.protein,
@@ -1900,11 +2317,11 @@
                 await supabaseClient
                     .from('saved_meals')
                     .delete()
-                    .eq('user_id', DEFAULT_USER_ID);
+                    .eq('user_id', getUserId());
                 
                 // Insert all meals with updated positions
                 const mealsToInsert = appState.savedMeals.map((meal, index) => ({
-                    user_id: DEFAULT_USER_ID,
+                    user_id: getUserId(),
                     name: meal.name,
                     weight: meal.weight,
                     calories: meal.calories,
@@ -2182,6 +2599,10 @@
         let donutChart, weeklyChart;
 
         function initCharts() {
+            // Destroy existing instances to prevent "Canvas already in use" error
+            if (donutChart) { donutChart.destroy(); donutChart = null; }
+            if (weeklyChart) { weeklyChart.destroy(); weeklyChart = null; }
+
             // Donut Chart
             const donutCtx = document.getElementById('donutChart').getContext('2d');
             donutChart = new Chart(donutCtx, {
@@ -3847,7 +4268,69 @@
 
         // Initialize app
         window.onload = async function() {
-            await init();
+            // Both elements start with display:none via inline style fallback
+            // (class="hidden" is not reliable when ID CSS rules have higher specificity)
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'none';
+
+            if (!supabaseClient) {
+                // No Supabase — go straight to app
+                document.getElementById('app').style.display = 'block';
+                await init();
+                return;
+            }
+
+            // ── STEP 1: Check for an existing session immediately (returning user) ──
+            const { data: { session: existingSession } } = await supabaseClient.auth.getSession();
+            if (existingSession?.user) {
+                currentUser = existingSession.user;
+                console.log('🔄 Session restored for:', currentUser.email);
+                showApp();
+                await init();
+            } else {
+                // No session → show login
+                showAuthScreen();
+            }
+
+            // ── STEP 2: Keep listening for future login / logout events ──
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                console.log('🔐 Auth event:', event, '| user:', session?.user?.email ?? 'none');
+
+                if (event === 'SIGNED_OUT') {
+                    currentUser = null;
+                    setAuthBtnLoading(false);
+                    showAuthScreen();
+                    return;
+                }
+
+                // SIGNED_IN or TOKEN_REFRESHED
+                if (session?.user && !currentUser) {
+                    // Only act if we weren't already logged in (avoids double-init)
+                    currentUser = session.user;
+                    setAuthBtnLoading(false);
+
+                    // Create default profile for brand-new sign-ups
+                    if (event === 'SIGNED_IN') {
+                        const { data: existing } = await supabaseClient
+                            .from('profiles')
+                            .select('id')
+                            .eq('user_id', currentUser.id)
+                            .single();
+                        if (!existing) {
+                            await supabaseClient.from('profiles').insert([{
+                                user_id: currentUser.id,
+                                daily_calorie_goal: 2000,
+                                current_weight: 70,
+                                height: null, weight: null, age: null
+                            }]);
+                            console.log('✅ Default profile created for new user');
+                        }
+                    }
+
+                    showApp();
+                    await init();
+                }
+            });
         };
     </script>
 </body>
