@@ -1,0 +1,3854 @@
+<!DOCTYPE html>
+<!--
+    ========================================
+    SUPABASE SETUP INSTRUCTIONS
+    ========================================
+    
+    1. Create these tables in your Supabase project:
+    
+    ** profiles **
+    CREATE TABLE profiles (
+        id BIGSERIAL PRIMARY KEY,
+        user_id UUID NOT NULL,
+        daily_calorie_goal INTEGER DEFAULT 2000,
+        current_weight DECIMAL(5,2),
+        height DECIMAL(5,2),
+        weight DECIMAL(5,2),
+        age INTEGER,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id)
+    );
+    
+    ** saved_meals **
+    CREATE TABLE saved_meals (
+        id BIGSERIAL PRIMARY KEY,
+        user_id UUID NOT NULL,
+        name TEXT NOT NULL,
+        weight DECIMAL(8,2),
+        calories INTEGER NOT NULL,
+        protein DECIMAL(5,2) DEFAULT 0,
+        icon TEXT,
+        position INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX idx_saved_meals_user ON saved_meals(user_id);
+    CREATE INDEX idx_saved_meals_position ON saved_meals(user_id, position);
+    
+    ** daily_logs **
+    CREATE TABLE daily_logs (
+        id BIGSERIAL PRIMARY KEY,
+        user_id UUID NOT NULL,
+        date DATE NOT NULL,
+        total_calories INTEGER DEFAULT 0,
+        protein DECIMAL(5,2) DEFAULT 0,
+        steps INTEGER DEFAULT 0,
+        water INTEGER DEFAULT 0,
+        meals JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, date)
+    );
+    CREATE INDEX idx_daily_logs_user_date ON daily_logs(user_id, date DESC);
+    
+    2. Update SUPABASE_URL and SUPABASE_ANON_KEY in the script below
+    3. Enable Row Level Security (RLS) if needed
+    
+    ========================================
+-->
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>CalorieTrack IL - מעקב קלוריות חכם</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Assistant:wght@300;400;600;700;800&display=swap');
+        
+        /* ========================
+           MODERN DARK EXECUTIVE THEME
+        ======================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            /* Modern Dark Executive Colors */
+            --bg-primary: #0A0E27;
+            --bg-secondary: #121630;
+            --bg-tertiary: #1A1F3A;
+            
+            /* Surface Layers - Layered Surface Design */
+            --surface-1: rgba(255, 255, 255, 0.05);
+            --surface-2: rgba(255, 255, 255, 0.08);
+            --surface-3: rgba(255, 255, 255, 0.12);
+            
+            /* Accent Colors */
+            --accent-primary: #8B5CF6;
+            --accent-secondary: #8B5CF6;
+            --accent-success: #10B981;
+            --accent-warning: #F59E0B;
+            --accent-error: #EF4444;
+            
+            /* Text with High Contrast */
+            --text-primary: #FFFFFF;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-tertiary: rgba(255, 255, 255, 0.5);
+            
+            /* Animation - Framer Motion Style */
+            --ease-smooth: cubic-bezier(0.4, 0.0, 0.2, 1);
+            --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            --transition-fast: 0.15s;
+            --transition-normal: 0.3s;
+            --transition-slow: 0.5s;
+            
+            /* Blur for Premium Feel */
+            --blur-amount: 40px;
+        }
+
+        body {
+            font-family: 'Heebo', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            font-size: 16px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Sophisticated Gradient Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+                var(--bg-primary);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* ========================
+           PREMIUM LAYERED SURFACE DESIGN
+        ======================== */
+        .glass-card {
+            background: var(--surface-2);
+            backdrop-filter: blur(var(--blur-amount));
+            -webkit-backdrop-filter: blur(var(--blur-amount));
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 
+                0 20px 40px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+            transition: all var(--transition-normal) var(--ease-smooth);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Modal inner cards must NOT clip the dropdown */
+        #modalAddMeal .glass-card,
+        #modalEditMeal .glass-card {
+            overflow: visible;
+        }
+        /* But the ::before highlight still needs clipping - re-apply only to it */
+        #modalAddMeal .glass-card::before,
+        #modalEditMeal .glass-card::before {
+            border-radius: 24px;
+            overflow: hidden;
+        }
+
+        /* Subtle top highlight for premium feel */
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 255, 255, 0.15) 50%, 
+                transparent);
+        }
+
+        /* Haptic Feedback - Scale down on press */
+        .glass-card:active {
+            transform: scale(0.98);
+            background: var(--surface-3);
+        }
+
+        .glass-card:hover {
+            background: var(--surface-3);
+            box-shadow: 
+                0 24px 48px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+        }
+
+        /* ========================
+           PREMIUM BOTTOM NAVIGATION
+        ======================== */
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all var(--transition-fast) var(--ease-smooth);
+            color: var(--text-tertiary);
+            position: relative;
+        }
+
+        /* Animated bottom indicator */
+        .nav-item::before {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%) scaleX(0);
+            width: 20px;
+            height: 3px;
+            border-radius: 2px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            transition: transform var(--transition-normal) var(--ease-smooth);
+        }
+
+        .nav-item.active {
+            color: var(--text-primary);
+            background: var(--surface-2);
+        }
+
+        .nav-item.active::before {
+            transform: translateX(-50%) scaleX(1);
+        }
+
+        /* Haptic feedback simulation */
+        .nav-item:active {
+            transform: scale(0.9);
+        }
+
+        /* ========================
+           PREMIUM METRIC CARDS
+        ======================== */
+        .metric-card {
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 20px;
+            transition: all var(--transition-normal) var(--ease-smooth);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 255, 255, 0.1) 50%, 
+                transparent);
+        }
+
+        .metric-card:hover {
+            background: var(--surface-2);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .metric-card:active {
+            transform: scale(0.98);
+        }
+
+        /* ========================
+           PREMIUM BUTTONS WITH HAPTIC FEEDBACK
+        ======================== */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 16px;
+            border: none;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all var(--transition-fast) var(--ease-smooth);
+            box-shadow: 
+                0 8px 24px rgba(99, 102, 241, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Ripple effect */
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-primary:active::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn-primary:hover {
+            box-shadow: 
+                0 12px 32px rgba(99, 102, 241, 0.5),
+                0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+        }
+        
+        .btn-primary:active {
+            transform: scale(0.95);
+        }
+
+        .btn-secondary {
+            background: var(--surface-2);
+            backdrop-filter: blur(20px);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all var(--transition-fast) var(--ease-smooth);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-secondary::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-secondary:active::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn-secondary:hover {
+            background: var(--surface-3);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-secondary:active {
+            transform: scale(0.95);
+        }
+
+        /* ========================
+           PREMIUM INPUT FIELDS
+        ======================== */
+        .input-glass {
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            padding: 14px 18px;
+            color: var(--text-primary);
+            font-size: 16px;
+            font-family: inherit;
+            transition: all var(--transition-normal) var(--ease-smooth);
+            width: 100%;
+        }
+
+        .input-glass::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .input-glass:focus {
+            outline: none;
+            background: var(--surface-2);
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        select.input-glass {
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: left 16px center;
+            padding-left: 40px;
+        }
+
+        /* ========================
+           CUSTOM ICON DROPDOWN
+        ======================== */
+        .icon-dropdown {
+            position: relative;
+            width: 100%;
+        }
+
+        .icon-dropdown-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            text-align: right;
+            border: none;
+            font-size: 22px;
+        }
+
+        .icon-dropdown-trigger:focus {
+            outline: none;
+            background: var(--surface-2);
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+        }
+
+        .icon-dropdown-selected {
+            font-size: 24px;
+            line-height: 1;
+        }
+
+        .icon-dropdown-arrow {
+            font-size: 11px;
+            opacity: 0.5;
+            transition: transform 0.2s ease;
+        }
+
+        .icon-dropdown.open .icon-dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .icon-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            left: 0;
+            z-index: 999;
+            background: var(--bg-tertiary);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 10px;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 6px;
+            list-style: none;
+            margin: 0;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(139, 92, 246, 0.15);
+            max-height: 192px;
+            overflow-y: scroll;
+            -webkit-overflow-scrolling: touch; /* smooth iOS scroll */
+            overscroll-behavior: contain;       /* prevent scroll bleed */
+        }
+
+        /* Opens upward when near bottom of screen */
+        .icon-dropdown-menu.opens-up {
+            top: auto;
+            bottom: calc(100% + 6px);
+            box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(139, 92, 246, 0.15);
+        }
+
+        .icon-dropdown-menu::-webkit-scrollbar {
+            width: 4px;
+        }
+        .icon-dropdown-menu::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .icon-dropdown-menu::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .icon-dropdown-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            padding: 8px 4px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            background: transparent;
+            border: 2px solid transparent;
+            line-height: 1;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        .icon-dropdown-item:hover {
+            background: var(--surface-2);
+            box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
+            transform: scale(1.12);
+        }
+
+        .icon-dropdown-item:active {
+            transform: scale(0.95);
+        }
+
+        .icon-dropdown-item.selected {
+            background: var(--surface-3);
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 14px rgba(139, 92, 246, 0.45);
+        }
+
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+
+        /* ========================
+           PREMIUM MICRO-INTERACTIONS
+        ======================== */
+        .floating {
+            animation: floating 3s ease-in-out infinite;
+        }
+
+        @keyframes floating {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s var(--ease-smooth);
+        }
+
+        @keyframes fadeIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+        
+        /* Slide from bottom animation - like native apps */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .slide-up {
+            animation: slideUp 0.4s var(--ease-smooth);
+        }
+        
+        /* Notification animations */
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        
+        @keyframes slideUpOut {
+            from { opacity: 1; transform: translateX(-50%) translateY(0); }
+            to { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+        }
+
+        /* ========================
+           PREMIUM MEAL ITEMS
+        ======================== */
+        .meal-item {
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border-radius: 18px;
+            padding: 18px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: all var(--transition-normal) var(--ease-smooth);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .meal-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 255, 255, 0.1) 50%, 
+                transparent);
+        }
+
+        .meal-item:hover {
+            background: var(--surface-2);
+            transform: translateX(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .meal-item:active {
+            transform: scale(0.98);
+        }
+
+        /* Staggered animation for meal list */
+        .meal-item:nth-child(1) { animation-delay: 0.05s; }
+        .meal-item:nth-child(2) { animation-delay: 0.1s; }
+        .meal-item:nth-child(3) { animation-delay: 0.15s; }
+        .meal-item:nth-child(4) { animation-delay: 0.2s; }
+        .meal-item:nth-child(5) { animation-delay: 0.25s; }
+
+        /* ========================
+        /* ========================
+           PREMIUM DELETE BUTTON
+        ======================== */
+        .delete-btn {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--accent-error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            padding: 10px 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all var(--transition-fast) var(--ease-smooth);
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .delete-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.4);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .delete-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* ========================
+           SORTABLE DRAG & DROP STYLES
+           Native mobile-app floating feel
+        ======================== */
+
+        /* Ghost = invisible placeholder that holds space in the list */
+        .sortable-ghost {
+            opacity: 0 !important;
+            background: transparent !important;
+            border: 2px dashed rgba(139, 92, 246, 0.4) !important;
+            border-radius: 18px !important;
+            box-shadow: none !important;
+        }
+
+        /* The floating clone that follows the finger */
+        .sortable-drag {
+            opacity: 1 !important;
+            /* Slight scale-up + subtle tilt = classic iOS "picked up" feel */
+            transform: scale(1.05) rotate(-1deg) !important;
+            box-shadow:
+                0 8px  16px rgba(0,   0,   0,   0.25),
+                0 24px 48px  rgba(0,   0,   0,   0.45),
+                0 0   0 1.5px rgba(139, 92, 246, 0.55) inset !important;
+            background: rgba(24, 22, 54, 0.98) !important;
+            border: 1px solid rgba(139, 92, 246, 0.5) !important;
+            border-radius: 18px !important;
+            cursor: grabbing !important;
+            z-index: 9999 !important;
+            /* Smooth entry into "floating" state */
+            transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1.8),
+                        box-shadow 0.12s ease !important;
+        }
+
+        /* Original item stays visible but dimmed while dragging */
+        .sortable-chosen:not(.sortable-drag) {
+            opacity: 0.45 !important;
+            transition: opacity 0.15s ease !important;
+        }
+
+        /* Drag handle: purple tint when actively held */
+        .drag-handle { touch-action: none; }
+        .sortable-chosen .drag-handle {
+            color: rgba(139, 92, 246, 0.9) !important;
+            opacity: 1 !important;
+        }
+
+        /* ========================
+           PREMIUM WATER TRACKER
+        ======================== */
+        /* ========================
+           AI CAMERA BUTTON & ANIMATIONS
+        ======================== */
+        .ai-camera-button-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .ai-camera-button {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 
+                0 20px 40px rgba(99, 102, 241, 0.4),
+                0 0 0 0 rgba(99, 102, 241, 0.5);
+            transition: all var(--transition-normal) var(--ease-smooth);
+            animation: pulse-ring 2s infinite;
+        }
+
+        @keyframes pulse-ring {
+            0%, 100% {
+                box-shadow: 
+                    0 20px 40px rgba(99, 102, 241, 0.4),
+                    0 0 0 0 rgba(99, 102, 241, 0.5);
+            }
+            50% {
+                box-shadow: 
+                    0 20px 60px rgba(99, 102, 241, 0.6),
+                    0 0 0 20px rgba(99, 102, 241, 0);
+            }
+        }
+
+        .ai-camera-button:hover {
+            transform: scale(1.05);
+            box-shadow: 
+                0 25px 50px rgba(99, 102, 241, 0.5),
+                0 0 0 0 rgba(99, 102, 241, 0.5);
+        }
+
+        .ai-camera-button:active {
+            transform: scale(0.95);
+        }
+
+        /* AI Spinner */
+        .ai-spinner {
+            width: 80px;
+            height: 80px;
+            border: 6px solid rgba(99, 102, 241, 0.2);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+            
+            .glass-card {
+                border-radius: 20px;
+            }
+            
+            #app {
+                padding-bottom: 140px !important;
+            }
+            
+            .metric-card {
+                padding: 14px;
+            }
+            
+            h1 {
+                font-size: 2rem !important;
+            }
+            
+            h2 {
+                font-size: 1.75rem !important;
+            }
+        }
+        
+        @media (min-width: 641px) {
+            #app {
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                border-radius: 24px;
+                background: rgba(0, 0, 0, 0.1);
+                backdrop-filter: blur(10px);
+                margin-top: 20px;
+                margin-bottom: 20px;
+            }
+        }
+        
+        /* Touch optimization */
+        @media (hover: none) and (pointer: coarse) {
+            .nav-item, .btn-primary, .btn-secondary, .meal-item {
+                -webkit-tap-highlight-color: transparent;
+                touch-action: manipulation;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="max-w-md mx-auto pb-20 pt-6 px-4 relative">
+        <!-- Settings Icon (Top Left) -->
+        <div class="absolute top-6 left-4 z-50">
+            <button onclick="showSettings()" class="glass-card p-3 rounded-full text-white hover:scale-110 transition-all">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Main Content -->
+        <div id="content" class="fade-in">
+            <!-- Home Screen (Default) -->
+            <div id="screen-home" class="screen">
+                <h1 class="text-4xl font-bold text-white text-center mb-8 floating" style="font-family: 'Assistant', sans-serif;">
+                    CalorieTrack IL
+                </h1>
+
+                <!-- Calorie Donut Chart -->
+                <div class="glass-card p-8 mb-6">
+                    <div class="relative mx-auto" style="width: 250px; height: 250px;">
+                        <canvas id="donutChart"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <div class="text-4xl font-bold text-white" id="caloriesConsumed">0</div>
+                            <div class="text-sm text-white opacity-80">מתוך <span id="caloriesGoal">2000</span></div>
+                            <div class="text-xs text-white opacity-60 mt-1">קלוריות</div>
+                            <div class="text-sm font-semibold mt-2 text-green-400" id="caloriesRemaining">נותרו: 2000</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="grid grid-cols-1 gap-4 mb-6">
+                    <!-- Steps Counter -->
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="text-3xl">👟</div>
+                                <div>
+                                    <div class="text-sm text-white opacity-80">צעדים היום</div>
+                                    <div class="text-2xl font-bold text-white" id="stepsCount">0</div>
+                                </div>
+                            </div>
+                            <button onclick="showStepsPicker()" class="btn-secondary text-sm">הוסף</button>
+                        </div>
+                        <div class="mt-3 bg-white/20 rounded-full h-2">
+                            <div id="stepsProgress" class="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all" style="width: 0%"></div>
+                        </div>
+                        <div class="text-xs text-white opacity-60 mt-1">יעד: 10,000 צעדים</div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Dashboard Screen -->
+            <div id="screen-dashboard" class="screen hidden">
+                <h2 class="text-3xl font-bold text-white mb-6" style="font-family: 'Assistant', sans-serif;">דשבורד שבועי</h2>
+                
+                <!-- Week Navigation -->
+                <div class="glass-card p-4 mb-6 flex items-center justify-between">
+                    <button onclick="previousWeek()" class="btn-secondary flex-shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                    </button>
+                    <div class="text-white font-semibold text-center flex-1 text-sm sm:text-base whitespace-nowrap px-2" id="weekDisplay">08/02/26 - 14/02/26</div>
+                    <button onclick="nextWeek()" class="btn-secondary flex-shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Weekly Chart -->
+                <div class="glass-card p-6 mb-6">
+                    <canvas id="weeklyChart" style="max-height: 300px;"></canvas>
+                </div>
+
+                <!-- Weekly Summary -->
+                <div id="weeklySummarySection" class="glass-card p-6">
+                    <h3 class="text-xl font-bold text-white mb-4">סיכום שבועי</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between text-white">
+                            <span class="opacity-80">ממוצע יומי:</span>
+                            <span class="font-bold" id="avgDaily">0</span>
+                        </div>
+                        <div class="flex justify-between text-white">
+                            <span class="opacity-80">סה"כ שבועי:</span>
+                            <span class="font-bold" id="totalWeekly">0</span>
+                        </div>
+                        <div class="flex justify-between text-white">
+                            <span class="opacity-80">ימים ביעד:</span>
+                            <span class="font-bold" id="daysOnTarget">0/7</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Day Detail View (hidden by default) -->
+                <div id="dayDetailView" class="hidden">
+                    <!-- Back Button -->
+                    <button onclick="closeDayDetail()" class="btn-secondary mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                        חזור
+                    </button>
+
+                    <!-- Day Title -->
+                    <div class="glass-card p-6 mb-6">
+                        <h3 class="text-2xl font-bold text-white text-center" id="dayDetailTitle">יום ראשון, 08/02/2026</h3>
+                        <div class="text-center text-white opacity-70 mt-2">
+                            <span id="dayDetailCalories">0</span> קלוריות • 
+                            <span id="dayDetailProtein">0</span>g חלבון
+                        </div>
+                    </div>
+
+                    <!-- Meals List -->
+                    <div class="glass-card p-6">
+                        <h4 class="text-xl font-bold text-white mb-4">מנות היום</h4>
+                        <div id="dayDetailMeals" class="space-y-3">
+                            <!-- Will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily Tracking Screen -->
+            <div id="screen-daily" class="screen hidden">
+                <h2 class="text-3xl font-bold text-white mb-6" style="font-family: 'Assistant', sans-serif;">מעקב יומי</h2>
+                
+                <!-- Add Buttons -->
+                <div class="flex gap-3 mb-6">
+                    <button onclick="showAddFromSaved()" class="btn-primary flex-1 flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        הוסף ממנות קבועות
+                    </button>
+                    <button onclick="showAddManual()" class="btn-secondary flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        מנה חדשה
+                    </button>
+                </div>
+
+                <!-- Today's Meals -->
+                <div class="glass-card p-6">
+                    <h3 class="text-xl font-bold text-white mb-4">מנות היום</h3>
+                    <div id="todayMeals" class="space-y-3">
+                        <div class="text-white opacity-60 text-center py-8">עדיין לא נוספו מנות להיום</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Saved Meals Screen -->
+            <div id="screen-meals" class="screen hidden">
+                <h2 class="text-3xl font-bold text-white mb-6" style="font-family: 'Assistant', sans-serif;">מנות קבועות</h2>
+                
+                <!-- Hidden CSV file input -->
+                <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="importFromCSV(event)">
+                
+                <!-- Action Buttons -->
+                <div class="flex gap-3 mb-6">
+                    <button onclick="showAddMeal()" class="btn-primary flex-1 flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        הוסף מנה חדשה
+                    </button>
+                    <button onclick="document.getElementById('csvFileInput').click()" class="btn-secondary flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        ייבא CSV
+                    </button>
+                </div>
+
+                <div id="savedMealsList" class="space-y-3">
+                    <!-- Will be populated by JS -->
+                </div>
+
+                <div class="text-center text-white opacity-60 text-sm mt-4">
+                    <span id="mealCount">0</span>/20 מנות
+                </div>
+            </div>
+
+            <!-- AI Screen -->
+            <div id="screen-ai" class="screen hidden">
+                <h2 class="text-3xl font-bold text-white mb-6" style="font-family: 'Assistant', sans-serif;">סריקת AI</h2>
+                
+                <!-- Mode Toggle Switch -->
+                <div class="glass-card p-2 mb-6 flex gap-2">
+                    <button id="modePlate" onclick="switchAIMode('plate')" class="flex-1 py-3 px-4 rounded-xl font-semibold transition-all bg-white/10 text-white">
+                        צלחת
+                    </button>
+                    <button id="modeRecipe" onclick="switchAIMode('recipe')" class="flex-1 py-3 px-4 rounded-xl font-semibold transition-all text-white opacity-60">
+                        מתכון
+                    </button>
+                </div>
+
+                <!-- PLATE MODE -->
+                <div id="plateModeContent">
+                    <!-- AI Camera Scan Area -->
+                    <div id="aiScanArea" class="glass-card p-10 text-center">
+                        <div class="ai-camera-button-container mb-6">
+                            <button id="aiCameraBtn" onclick="triggerAICamera()" class="ai-camera-button">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                    <circle cx="12" cy="13" r="4"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-2" style="font-family: 'Assistant', sans-serif;">סריקת מנה באמצעות AI</h3>
+                        <p class="text-white opacity-70 mb-8">צלמו את הצלחת שלכם וה-AI יזהה את המרכיבים והקלוריות</p>
+
+                        <!-- Camera / Gallery buttons -->
+                        <div class="flex gap-3">
+                            <button onclick="triggerAICamera()" class="btn-primary flex-1 flex items-center justify-center gap-2 py-4">
+                                <!-- Camera icon -->
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                    <circle cx="12" cy="13" r="4"></circle>
+                                </svg>
+                                <span>מצלמה</span>
+                            </button>
+                            <button onclick="triggerAIGallery()" class="btn-secondary flex-1 flex items-center justify-center gap-2 py-4">
+                                <!-- Gallery icon -->
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                    <polyline points="21 15 16 10 5 21"></polyline>
+                                </svg>
+                                <span>גלריה</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Processing State (hidden by default) -->
+                    <div id="aiProcessingArea" class="glass-card p-12 text-center hidden">
+                        <div class="ai-spinner mb-6"></div>
+                        <h3 class="text-2xl font-bold text-white mb-3" style="font-family: 'Assistant', sans-serif;">ה-AI מנתח את המנה שלך...</h3>
+                        <p class="text-white opacity-70">אנא המתן, זה ייקח כמה שניות</p>
+                    </div>
+
+                    <!-- Success Result (hidden by default) -->
+                    <div id="aiResultArea" class="glass-card p-8 hidden">
+                        <div class="text-center mb-6">
+                            <div class="text-5xl mb-4">✅</div>
+                            <h3 class="text-2xl font-bold text-white mb-2" style="font-family: 'Assistant', sans-serif;">זוהה בהצלחה!</h3>
+                        </div>
+                        <div id="aiResultContent" class="bg-white/5 rounded-2xl p-6 text-right mb-6">
+                            <!-- Will be populated by JS -->
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="space-y-3 mb-6">
+                            <button onclick="addToTodayFromAI()" class="btn-primary w-full flex items-center justify-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                <span>הוסף ליומן היום</span>
+                            </button>
+                            
+                            <button onclick="saveToLibraryFromAI()" class="btn-secondary w-full flex items-center justify-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                </svg>
+                                <span>שמור כמנה קבועה</span>
+                            </button>
+                        </div>
+                        
+                        <button onclick="resetAIScan()" class="btn-secondary w-full opacity-70">סרוק מנה נוספת</button>
+                    </div>
+
+                    <!-- Camera input: capture="environment" opens rear camera directly -->
+                    <input type="file" id="aiCameraInput"  accept="image/*" capture="environment" class="hidden" onchange="handleAIImageUpload(event)">
+                    <!-- Gallery input: no capture attribute = photo library picker -->
+                    <input type="file" id="aiGalleryInput" accept="image/*" class="hidden" onchange="handleAIImageUpload(event)">
+                </div>
+
+                <!-- RECIPE MODE -->
+                <div id="recipeModeContent" class="hidden">
+                    <!-- Recipe Input Area -->
+                    <div id="recipeInputArea" class="space-y-4">
+                        <!-- Method A: Text Input -->
+                        <div class="glass-card p-6">
+                            <h3 class="text-xl font-bold text-white mb-4 text-center">שיטה א': ניתוח טקסט</h3>
+                            <textarea id="recipeTextInput" class="input-glass w-full h-40 resize-none" placeholder="הדבק את רכיבי המתכון...&#10;&#10;לדוגמה:&#10;200 גרם קמח&#10;3 ביצים&#10;100 מ״ל חלב&#10;50 גרם חמאה"></textarea>
+                            <button onclick="analyzeRecipeText()" class="btn-primary w-full mt-3">נתח טקסט</button>
+                        </div>
+
+                        <!-- Method B: Image Upload -->
+                        <div class="glass-card p-6 text-center">
+                            <h3 class="text-xl font-bold text-white mb-4">שיטה ב': העלאת תמונה</h3>
+                            <button onclick="triggerRecipeImageUpload()" class="btn-secondary mx-auto flex items-center justify-center" style="width: 56px; height: 56px; border-radius: 16px; padding: 0;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            </button>
+                            <input type="file" id="recipeImageInput" accept="image/*" class="hidden" onchange="handleRecipeImageUpload(event)">
+                        </div>
+                    </div>
+
+                    <!-- Recipe Processing State -->
+                    <div id="recipeProcessingArea" class="glass-card p-12 text-center hidden">
+                        <div class="ai-spinner mb-6"></div>
+                        <h3 class="text-2xl font-bold text-white mb-3" style="font-family: 'Assistant', sans-serif;">ה-AI מנתח את המתכון...</h3>
+                        <p class="text-white opacity-70">אנא המתן, זה עשוי לקחת מספר שניות</p>
+                    </div>
+
+                    <!-- Recipe Result Area -->
+                    <div id="recipeResultArea" class="glass-card p-8 hidden">
+                        <div class="text-center mb-6">
+                            <div class="text-5xl mb-4">✅</div>
+                            <h3 class="text-2xl font-bold text-white mb-2" style="font-family: 'Assistant', sans-serif;">המתכון נותח בהצלחה!</h3>
+                        </div>
+                        <div id="recipeResultContent" class="bg-white/5 rounded-2xl p-6 text-right mb-6">
+                            <!-- Will be populated by JS -->
+                        </div>
+                        
+                        <!-- Action Buttons for Recipe -->
+                        <div class="space-y-3 mb-6">
+                            <button onclick="addRecipeToTodayFromAI()" class="btn-primary w-full flex items-center justify-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                <span>הוסף ליומן היום</span>
+                            </button>
+                            
+                            <button onclick="saveRecipeToLibraryFromAI()" class="btn-secondary w-full flex items-center justify-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                </svg>
+                                <span>שמור כמנה קבועה</span>
+                            </button>
+                        </div>
+                        
+                        <button onclick="resetRecipeAnalysis()" class="btn-secondary w-full opacity-70">נתח מתכון נוסף</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Screen -->
+            <div id="screen-settings" class="screen hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-white" style="font-family: 'Assistant', sans-serif;">הגדרות</h2>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Current Weight Tracker -->
+                    <div class="glass-card p-6">
+                        <h3 class="text-xl font-bold text-white mb-4">מעקב משקל נוכחי</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-white text-sm mb-2">משקל נוכחי (ק"ג)</label>
+                                <button onclick="openCurrentWeightPicker()" class="input-glass text-right w-full flex items-center justify-between">
+                                    <span id="currentWeightDisplay">בחר משקל נוכחי</span>
+                                    <span class="opacity-50">▼</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BMR Calculator -->
+                    <div class="glass-card p-6">
+                        <h3 class="text-xl font-bold text-white mb-4">חישוב יעד גירעון קלורי</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-white text-sm mb-2">גובה (ס"מ)</label>
+                                <button onclick="openHeightPicker()" class="input-glass text-right w-full flex items-center justify-between">
+                                    <span id="heightDisplay">בחר גובה</span>
+                                    <span class="opacity-50">▼</span>
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-white text-sm mb-2">משקל (ק"ג)</label>
+                                <button onclick="openWeightPicker()" class="input-glass text-right w-full flex items-center justify-between">
+                                    <span id="weightDisplay">בחר משקל</span>
+                                    <span class="opacity-50">▼</span>
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-white text-sm mb-2">גיל</label>
+                                <button onclick="openAgePicker()" class="input-glass text-right w-full flex items-center justify-between">
+                                    <span id="ageDisplay">בחר גיל</span>
+                                    <span class="opacity-50">▼</span>
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-white text-sm mb-1">מין</label>
+                                <select id="bmrGender" class="input-glass">
+                                    <option value="">בחר מין</option>
+                                    <option value="male">זכר</option>
+                                    <option value="female">נקבה</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-white text-sm mb-1">רמת פעילות</label>
+                                <select id="bmrActivity" class="input-glass">
+                                    <option value="1.2">מינימלית (ללא פעילות)</option>
+                                    <option value="1.375">קלה (1-3 פעמים בשבוע)</option>
+                                    <option value="1.55">בינונית (3-5 פעמים בשבוע)</option>
+                                    <option value="1.725">גבוהה (6-7 פעמים בשבוע)</option>
+                                    <option value="1.9">מאוד גבוהה (פעילות יומית כפולה)</option>
+                                </select>
+                            </div>
+                            <button onclick="calculateBMR()" class="btn-primary w-full">חשב</button>
+                            <div id="bmrResult" class="text-white text-center font-bold text-xl mt-4"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <div class="fixed bottom-0 right-0 left-0 max-w-md mx-auto" style="padding-bottom: env(safe-area-inset-bottom);">
+            <div class="glass-card mx-4 mb-4 p-3">
+                <div class="flex justify-around items-center">
+                    <button onclick="showScreen('dashboard')" class="nav-item flex flex-col items-center gap-1 p-3 rounded-xl" id="nav-dashboard">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        <span class="text-xs text-white">דשבורד</span>
+                    </button>
+
+                    <button onclick="showScreen('daily')" class="nav-item flex flex-col items-center gap-1 p-3 rounded-xl" id="nav-daily">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        <span class="text-xs text-white">יומי</span>
+                    </button>
+
+                    <button onclick="showScreen('home')" class="nav-item active flex flex-col items-center gap-1 p-3 rounded-xl" id="nav-home">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                        </svg>
+                        <span class="text-xs text-white">בית</span>
+                    </button>
+
+                    <button onclick="showScreen('meals')" class="nav-item flex flex-col items-center gap-1 p-3 rounded-xl" id="nav-meals">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <!-- Fork on left -->
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5M6 4v5M8 4v5M6 9v11"/>
+                            <!-- Plate in center -->
+                            <circle cx="14" cy="12" r="6"/>
+                            <circle cx="14" cy="12" r="3.5"/>
+                            <!-- Knife on right -->
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M20 4v16M20 4c1 0 1.5 0.5 1.5 2v4c0 1.5-0.5 2-1.5 2"/>
+                        </svg>
+                        <span class="text-xs text-white">מנות</span>
+                    </button>
+
+                    <button onclick="showScreen('ai')" class="nav-item flex flex-col items-center gap-1 p-3 rounded-xl" id="nav-ai">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        <span class="text-xs text-white">AI</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add Manual Meal Modal -->
+    <div id="modalAddManual" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold text-white mb-4">הוסף מנה חדשה</h3>
+            <div class="space-y-3">
+                <input type="text" id="manualMealName" class="input-glass" placeholder="שם המנה">
+                <input type="number" id="manualMealCalories" class="input-glass" placeholder="קלוריות">
+                <div class="flex gap-3">
+                    <button onclick="addManualMeal()" class="btn-primary flex-1">הוסף</button>
+                    <button onclick="closeModal('modalAddManual')" class="btn-secondary flex-1">ביטול</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add from Saved Meals Modal -->
+    <div id="modalAddFromSaved" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold text-white mb-4">בחר מנה</h3>
+            <div id="savedMealsSelect" class="space-y-2 mb-4">
+                <!-- Will be populated -->
+            </div>
+            <button onclick="closeModal('modalAddFromSaved')" class="btn-secondary w-full">סגור</button>
+        </div>
+    </div>
+
+    <!-- Add Saved Meal Modal -->
+    <div id="modalAddMeal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-md w-full">
+            <h3 class="text-2xl font-bold text-white mb-4">מנה קבועה חדשה</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">שם המנה</label>
+                    <input type="text" id="newMealName" class="input-glass" placeholder="שם המנה">
+                </div>
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">משקל (גרם)</label>
+                    <input type="number" id="newMealWeight" class="input-glass" placeholder="משקל (גרם)">
+                </div>
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">קלוריות</label>
+                    <input type="number" id="newMealCalories" class="input-glass" placeholder="קלוריות">
+                </div>
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">בחר אייקון</label>
+                    <div class="icon-dropdown" id="iconDropdown">
+                        <button type="button" class="icon-dropdown-trigger input-glass" onclick="toggleIconDropdown('iconDropdown')">
+                            <span class="icon-dropdown-selected" id="iconDropdownSelected">🍎</span>
+                            <span class="icon-dropdown-arrow">▼</span>
+                        </button>
+                        <ul class="icon-dropdown-menu hidden" id="iconDropdownMenu">
+                            <!-- Populated by JS -->
+                        </ul>
+                        <input type="hidden" id="iconSelector" value="🍎">
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="saveMeal()" class="btn-primary flex-1">שמור</button>
+                    <button onclick="closeModal('modalAddMeal')" class="btn-secondary flex-1">ביטול</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Saved Meal Modal -->
+    <div id="modalEditMeal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-md w-full">
+            <h3 class="text-2xl font-bold text-white mb-4">ערוך מנה</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">שם המנה</label>
+                    <input type="text" id="editMealName" class="input-glass" placeholder="שם המנה">
+                </div>
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">משקל (גרם)</label>
+                    <input type="number" id="editMealWeight" class="input-glass" placeholder="משקל (גרם)">
+                </div>
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">קלוריות</label>
+                    <input type="number" id="editMealCalories" class="input-glass" placeholder="קלוריות">
+                </div>
+                <div>
+                    <label class="text-sm text-white opacity-70 mb-1 block">בחר אייקון</label>
+                    <div class="icon-dropdown" id="editIconDropdown">
+                        <button type="button" class="icon-dropdown-trigger input-glass" onclick="toggleIconDropdown('editIconDropdown')">
+                            <span class="icon-dropdown-selected" id="editIconDropdownSelected">🍎</span>
+                            <span class="icon-dropdown-arrow">▼</span>
+                        </button>
+                        <ul class="icon-dropdown-menu hidden" id="editIconDropdownMenu">
+                            <!-- Populated by JS -->
+                        </ul>
+                        <input type="hidden" id="editIconSelector" value="🍎">
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="updateMeal()" class="btn-primary flex-1">עדכן</button>
+                    <button onclick="closeModal('modalEditMeal')" class="btn-secondary flex-1">ביטול</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Steps Picker Modal -->
+    <div id="modalStepsPicker" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-sm w-full">
+            <h3 class="text-2xl font-bold text-white mb-6 text-center">הוסף צעדים</h3>
+            
+            <div class="relative h-64 overflow-hidden mb-6">
+                <!-- Gradient overlays for depth effect -->
+                <div class="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                
+                <!-- Selection indicator -->
+                <div class="absolute left-0 right-0 top-1/2 transform -translate-y-1/2 h-16 border-y-2 border-cyan-400 bg-cyan-400/10 pointer-events-none z-10"></div>
+                
+                <!-- Scrollable numbers -->
+                <div id="stepsWheel" class="h-full overflow-y-scroll scrollbar-hide relative" style="scroll-snap-type: y mandatory;">
+                    <!-- Will be populated by JS -->
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="confirmSteps()" class="btn-primary flex-1">אישור</button>
+                <button onclick="closeModal('modalStepsPicker')" class="btn-secondary flex-1">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Height Picker Modal -->
+    <div id="modalHeightPicker" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-sm w-full">
+            <h3 class="text-2xl font-bold text-white mb-6 text-center">בחר גובה (ס"מ)</h3>
+            
+            <div class="relative h-64 overflow-hidden mb-6">
+                <div class="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute left-0 right-0 top-1/2 transform -translate-y-1/2 h-16 border-y-2 border-cyan-400 bg-cyan-400/10 pointer-events-none z-10"></div>
+                
+                <div id="heightWheel" class="h-full overflow-y-scroll scrollbar-hide relative" style="scroll-snap-type: y mandatory;">
+                    <!-- Will be populated by JS -->
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="confirmHeight()" class="btn-primary flex-1">אישור</button>
+                <button onclick="closeModal('modalHeightPicker')" class="btn-secondary flex-1">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weight Picker Modal -->
+    <div id="modalWeightPicker" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-sm w-full">
+            <h3 class="text-2xl font-bold text-white mb-6 text-center">בחר משקל (ק"ג)</h3>
+            
+            <div class="relative h-64 overflow-hidden mb-6">
+                <div class="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute left-0 right-0 top-1/2 transform -translate-y-1/2 h-16 border-y-2 border-cyan-400 bg-cyan-400/10 pointer-events-none z-10"></div>
+                
+                <div id="weightWheel" class="h-full overflow-y-scroll scrollbar-hide relative" style="scroll-snap-type: y mandatory;">
+                    <!-- Will be populated by JS -->
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="confirmWeight()" class="btn-primary flex-1">אישור</button>
+                <button onclick="closeModal('modalWeightPicker')" class="btn-secondary flex-1">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Age Picker Modal -->
+    <div id="modalAgePicker" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-sm w-full">
+            <h3 class="text-2xl font-bold text-white mb-6 text-center">בחר גיל</h3>
+            
+            <div class="relative h-64 overflow-hidden mb-6">
+                <div class="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute left-0 right-0 top-1/2 transform -translate-y-1/2 h-16 border-y-2 border-cyan-400 bg-cyan-400/10 pointer-events-none z-10"></div>
+                
+                <div id="ageWheel" class="h-full overflow-y-scroll scrollbar-hide relative" style="scroll-snap-type: y mandatory;">
+                    <!-- Will be populated by JS -->
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="confirmAge()" class="btn-primary flex-1">אישור</button>
+                <button onclick="closeModal('modalAgePicker')" class="btn-secondary flex-1">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quantity Picker Modal -->
+    <div id="modalQuantityPicker" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-sm w-full">
+            <h3 class="text-2xl font-bold text-white mb-6 text-center">עדכן כמות</h3>
+            
+            <!-- Plus/Minus Controls -->
+            <div class="flex items-center justify-center gap-4 mb-6">
+                <button onclick="decreaseQuantity()" class="w-14 h-14 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-white text-2xl font-bold transition-all active:scale-95">
+                    −
+                </button>
+                
+                <div class="text-center">
+                    <div class="text-4xl font-bold text-white" id="quantityDisplay">1.0</div>
+                    <div class="text-white opacity-60 text-sm mt-1">כמות</div>
+                </div>
+                
+                <button onclick="increaseQuantity()" class="w-14 h-14 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-white text-2xl font-bold transition-all active:scale-95">
+                    +
+                </button>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="confirmQuantity()" class="btn-primary flex-1">אישור</button>
+                <button onclick="closeModal('modalQuantityPicker')" class="btn-secondary flex-1">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Weight Picker Modal -->
+    <div id="modalCurrentWeightPicker" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="glass-card p-6 max-w-sm w-full">
+            <h3 class="text-2xl font-bold text-white mb-6 text-center">בחר משקל נוכחי (ק"ג)</h3>
+            
+            <div class="relative h-64 overflow-hidden mb-6">
+                <div class="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0f2027] to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute left-0 right-0 top-1/2 transform -translate-y-1/2 h-16 border-y-2 border-cyan-400 bg-cyan-400/10 pointer-events-none z-10"></div>
+                
+                <div id="currentWeightWheel" class="h-full overflow-y-scroll scrollbar-hide relative" style="scroll-snap-type: y mandatory;">
+                    <!-- Will be populated by JS -->
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="confirmCurrentWeight()" class="btn-primary flex-1">אישור</button>
+                <button onclick="closeModal('modalCurrentWeightPicker')" class="btn-secondary flex-1">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        .step-option {
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+            scroll-snap-align: center;
+        }
+        
+        .step-option.selected {
+            color: rgba(255, 255, 255, 1);
+            font-size: 40px;
+        }
+    </style>
+
+    <script>
+        console.log("🔥 CalorieTrack IL - Supabase Version 2.0 - FRESH");
+        // ========================
+        // SUPABASE CONFIGURATION
+        // ========================
+        const SUPABASE_URL = 'https://hxzcuhrrfgtyencumilp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4emN1aHJyZmd0eWVuY3VtaWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDA0MTYsImV4cCI6MjA4NjQ3NjQxNn0.fKGBmunJi4Y-pyBLmuMLj4QWyvE6Xyu9tlWzARsiYZQ';
+        
+        // Initialize Supabase client (with safety check)
+        let supabaseClient = null;
+        if (typeof window.supabase !== 'undefined' && 
+            SUPABASE_URL !== 'YOUR_SUPABASE_URL_HERE' && 
+            SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY_HERE') {
+            try {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log('✅ Supabase connected successfully');
+                console.log('📡 Connected to:', SUPABASE_URL);
+            } catch (error) {
+                console.warn('⚠️ Supabase initialization failed, using LocalStorage fallback:', error);
+            }
+        } else {
+            console.log('ℹ️ Supabase not configured, using LocalStorage');
+            console.log('Debug - window.supabase exists:', typeof window.supabase !== 'undefined');
+            console.log('Debug - URL:', SUPABASE_URL);
+        }
+        
+        // Default user ID (guest user)
+        const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
+        
+        // ========================
+        // GEMINI AI CONFIGURATION
+        // ========================
+        // API Key removed - now using secure Supabase Edge Function
+        
+        // Store last AI analysis result
+        let lastAIResult = null;
+
+        // Food icons
+        const foodIcons = [
+            // פירות וירקות
+            '🍎', '🍏', '🍌', '🍐', '🍊', '🍋', '🍓', '🍇', '🍉', '🥑', '🥦', '🥕', '🥒', '🍅', '🍄',
+            // חלבונים ומנות עיקריות
+            '🍳', '🍗', '🥩', '🐟', '🍤', '🍣', '🍱', '🍲', '🥘', '🍝', '🍜', '🍛', '🍚', '🥟',
+            // לחמים, דגנים ומאפים
+            '🍞', '🥖', '🥯', '🥪', '🥙', '🥣', '🥐', '🥨', '🧀', '🧈',
+            // בסיס, רטבים וחטיפים בריאים
+            '🍶', '🧂', '🍿', '🍫', '🍯',
+            // שתייה בסיסית
+            '💧', '☕', '🍵'
+        ];
+
+        // App State
+        let appState = {
+            currentScreen: 'home',
+            lastDate: null, // Track last day the app was opened
+            settings: {
+                dailyGoal: 2000,
+                currentWeight: 70,
+                height: null,
+                weight: null,
+                age: null
+            },
+            todayData: {
+                calories: 0,
+                steps: 0,
+                water: 0,
+                protein: 0,
+                meals: []
+            },
+            savedMeals: [],
+            weeklyData: {
+                currentWeek: 0,
+                weeks: []
+            }
+        };
+
+        // Initialize
+        async function init() {
+            await loadState();
+            checkDateChange(); // Check if date changed and reset if needed
+            initCharts();
+            renderSavedMeals();
+            renderIconSelector();
+            renderTodayMeals(); // Add this to render meals on load
+            updateHomeScreen();
+            syncTodayToWeekly(); // Sync current data on load
+            updateWeeklyChart();
+        }
+
+        // ========================
+        // SUPABASE DATA FUNCTIONS
+        // ========================
+        
+        // Load all data from Supabase
+        async function loadState() {
+            try {
+                // Load profile (settings)
+                const { data: profile, error: profileError } = await supabaseClient
+                    .from('profiles')
+                    .select('*')
+                    .eq('user_id', DEFAULT_USER_ID)
+                    .single();
+                
+                if (profile) {
+                    appState.settings = {
+                        dailyGoal: profile.daily_calorie_goal || 2000,
+                        currentWeight: profile.current_weight || 70,
+                        height: profile.height,
+                        weight: profile.weight,
+                        age: profile.age
+                    };
+                } else {
+                    // Create default profile if doesn't exist
+                    await createDefaultProfile();
+                }
+
+                // Load saved meals (ordered by position)
+                const { data: meals, error: mealsError } = await supabaseClient
+                    .from('saved_meals')
+                    .select('*')
+                    .eq('user_id', DEFAULT_USER_ID)
+                    .order('position', { ascending: true });
+                
+                if (meals) {
+                    appState.savedMeals = meals.map(m => ({
+                        id: m.id,
+                        name: m.name,
+                        weight: m.weight,
+                        calories: m.calories,
+                        protein: m.protein,
+                        icon: m.icon
+                    }));
+                }
+
+                // Load today's log
+                const today = new Date().toISOString().split('T')[0];
+                const { data: todayLog, error: logError } = await supabaseClient
+                    .from('daily_logs')
+                    .select('*')
+                    .eq('user_id', DEFAULT_USER_ID)
+                    .eq('date', today)
+                    .single();
+                
+                if (todayLog) {
+                    appState.todayData = {
+                        calories: todayLog.total_calories || 0,
+                        steps: todayLog.steps || 0,
+                        water: todayLog.water || 0,
+                        protein: todayLog.protein || 0,
+                        meals: todayLog.meals || []
+                    };
+                    appState.lastDate = new Date(todayLog.date).toDateString();
+                } else {
+                    // Create today's log
+                    await createTodayLog();
+                    appState.lastDate = new Date().toDateString();
+                }
+
+                // Load weekly data (last 52 weeks)
+                await loadWeeklyData();
+                
+                // Data migration: Fix week structure if needed
+                fixWeekDataStructure();
+                
+            } catch (error) {
+                console.error('Error loading data from Supabase:', error);
+                // Fallback to localStorage if Supabase fails
+                loadStateFromLocalStorage();
+            }
+        }
+
+        // Create default profile
+        async function createDefaultProfile() {
+            const { data, error } = await supabaseClient
+                .from('profiles')
+                .insert([{
+                    user_id: DEFAULT_USER_ID,
+                    daily_calorie_goal: 2000,
+                    current_weight: 70,
+                    height: null,
+                    weight: null,
+                    age: null
+                }])
+                .select()
+                .single();
+            
+            if (error) console.error('Error creating profile:', error);
+        }
+
+        // Create today's log
+        async function createTodayLog() {
+            const today = new Date().toISOString().split('T')[0];
+            const { data, error } = await supabaseClient
+                .from('daily_logs')
+                .insert([{
+                    user_id: DEFAULT_USER_ID,
+                    date: today,
+                    total_calories: 0,
+                    protein: 0,
+                    steps: 0,
+                    water: 0,
+                    meals: []
+                }])
+                .select()
+                .single();
+            
+            if (error) console.error('Error creating today log:', error);
+        }
+
+        // Load weekly data from daily logs
+        async function loadWeeklyData() {
+            // Calculate date range for last 52 weeks
+            const today = new Date();
+            const startDate = new Date(today);
+            startDate.setDate(today.getDate() - (52 * 7));
+            
+            const { data: logs, error } = await supabaseClient
+                .from('daily_logs')
+                .select('*')
+                .eq('user_id', DEFAULT_USER_ID)
+                .gte('date', startDate.toISOString().split('T')[0])
+                .order('date', { ascending: true });
+            
+            if (logs) {
+                // Initialize empty weeks structure
+                appState.weeklyData.weeks = Array(52).fill(null).map(() => 
+                    Array(7).fill(null).map(() => ({
+                        calories: 0,
+                        protein: 0,
+                        meals: [],
+                        date: new Date().toISOString()
+                    }))
+                );
+
+                // Populate with actual data
+                logs.forEach(log => {
+                    const logDate = new Date(log.date);
+                    const dayOfWeek = logDate.getDay(); // 0 = Sunday
+                    const weeksDiff = Math.floor((today - logDate) / (7 * 24 * 60 * 60 * 1000));
+                    
+                    if (weeksDiff >= 0 && weeksDiff < 52) {
+                        appState.weeklyData.weeks[weeksDiff][dayOfWeek] = {
+                            calories: log.total_calories || 0,
+                            protein: log.protein || 0,
+                            meals: log.meals || [],
+                            date: log.date
+                        };
+                    }
+                });
+            } else {
+                initializeWeeklyData();
+            }
+        }
+
+        // Save profile to Supabase
+        async function saveProfile() {
+            if (!supabaseClient) {
+                console.log('⏭️ Skipping saveProfile (no Supabase)');
+                return;
+            }
+            
+            try {
+                console.log('👤 saveProfile called');
+                const { data, error } = await supabaseClient
+                    .from('profiles')
+                    .upsert({
+                        user_id: DEFAULT_USER_ID,
+                        daily_calorie_goal: appState.settings.dailyGoal,
+                        current_weight: appState.settings.currentWeight,
+                        height: appState.settings.height,
+                        weight: appState.settings.weight,
+                        age: appState.settings.age,
+                        updated_at: new Date().toISOString()
+                    }, {
+                        onConflict: 'user_id'
+                    });
+                
+                if (error) throw error;
+                console.log('✅ Profile saved');
+            } catch (error) {
+                console.error('❌ Error saving profile:', error);
+            }
+        }
+
+        // Save today's data to Supabase
+        async function saveTodayData() {
+            console.log('💾 saveTodayData called');
+            console.log('   supabaseClient exists:', !!supabaseClient);
+            console.log('   todayData:', appState.todayData);
+            
+            if (!supabaseClient) {
+                console.error('❌ No Supabase client - cannot save!');
+                return;
+            }
+            
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                console.log('   Saving for date:', today);
+                
+                const dataToSave = {
+                    user_id: DEFAULT_USER_ID,
+                    date: today,
+                    total_calories: appState.todayData.calories,
+                    protein: appState.todayData.protein,
+                    steps: appState.todayData.steps,
+                    water: appState.todayData.water,
+                    meals: appState.todayData.meals,
+                    updated_at: new Date().toISOString()
+                };
+                
+                console.log('   Data to save:', dataToSave);
+                
+                // Use upsert to insert or update
+                const { data, error } = await supabaseClient
+                    .from('daily_logs')
+                    .upsert(dataToSave, {
+                        onConflict: 'user_id,date'
+                    });
+                
+                if (error) {
+                    console.error('❌ Supabase error:', error);
+                    throw error;
+                }
+                console.log('✅ Today data saved successfully to Supabase');
+                console.log('   Response:', data);
+            } catch (error) {
+                console.error('❌ Error saving today data:', error);
+            }
+        }
+
+        // Save saved meals to Supabase
+        async function saveSavedMeals() {
+            if (!supabaseClient) {
+                console.log('⏭️ Skipping saveSavedMeals (no Supabase)');
+                return;
+            }
+            
+            try {
+                console.log('🍱 saveSavedMeals called');
+                // Delete all existing meals for this user
+                await supabaseClient
+                    .from('saved_meals')
+                    .delete()
+                    .eq('user_id', DEFAULT_USER_ID);
+                
+                // Insert all meals with updated positions
+                const mealsToInsert = appState.savedMeals.map((meal, index) => ({
+                    user_id: DEFAULT_USER_ID,
+                    name: meal.name,
+                    weight: meal.weight,
+                    calories: meal.calories,
+                    protein: meal.protein || 0,
+                    icon: meal.icon,
+                    position: index
+                }));
+                
+                if (mealsToInsert.length > 0) {
+                    const { data, error } = await supabaseClient
+                        .from('saved_meals')
+                        .insert(mealsToInsert);
+                    
+                    if (error) throw error;
+                }
+                console.log('✅ Saved meals saved');
+            } catch (error) {
+                console.error('❌ Error saving meals:', error);
+            }
+        }
+
+        // Unified save function (replaces saveState)
+        async function saveState() {
+            console.log('📦 saveState called');
+            try {
+                await Promise.all([
+                    saveProfile(),
+                    saveTodayData(),
+                    saveSavedMeals()
+                ]);
+                console.log('📦 saveState completed successfully');
+            } catch (error) {
+                console.error('❌ saveState error:', error);
+            }
+        }
+
+        // Fallback to localStorage (for offline support)
+        function loadStateFromLocalStorage() {
+            const saved = localStorage.getItem('calorieTrackIL');
+            if (saved) {
+                appState = JSON.parse(saved);
+                if (!appState.todayData.meals) {
+                    appState.todayData.meals = [];
+                }
+                fixWeekDataStructure();
+            } else {
+                initializeWeeklyData();
+            }
+        }
+
+        // Fix week data structure for users who have old data
+        function fixWeekDataStructure() {
+            const today = new Date();
+            const todayDayOfWeek = today.getDay(); // 0 = Sunday
+
+            // Fix negative currentWeek from old version
+            if (appState.weeklyData.currentWeek < 0) {
+                appState.weeklyData.currentWeek = 0;
+            }
+
+            if (!appState.weeklyData.weeks || appState.weeklyData.weeks.length === 0) {
+                initializeWeeklyData();
+                return;
+            }
+
+            // Calculate this week's Sunday (start of current calendar week)
+            const thisWeekSunday = new Date(today);
+            thisWeekSunday.setDate(today.getDate() - todayDayOfWeek);
+            thisWeekSunday.setHours(0, 0, 0, 0);
+
+            // Scan weeks[0] and zero out any day that belongs to a PREVIOUS calendar week.
+            // A day slot belongs to a previous week when its stored date is before thisWeekSunday.
+            const currentWeek = appState.weeklyData.weeks[0];
+            if (currentWeek) {
+                let fixed = false;
+                for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+                    const slot = currentWeek[dayIdx];
+                    if (!slot || !slot.date || slot.calories === 0) continue;
+
+                    const slotDate = new Date(slot.date);
+                    slotDate.setHours(0, 0, 0, 0);
+
+                    // If the slot's date is before this week's Sunday → it's stale ghost data
+                    if (slotDate < thisWeekSunday) {
+                        console.log(`🔧 Ghost data detected in weeks[0][${dayIdx}] (date: ${slotDate.toDateString()}, before ${thisWeekSunday.toDateString()}). Clearing.`);
+
+                        // Try to save to the correct past-week slot in weeks[1]
+                        if (!appState.weeklyData.weeks[1]) {
+                            appState.weeklyData.weeks[1] = Array(7).fill(null).map(() => ({
+                                calories: 0, protein: 0, meals: [], date: new Date().toISOString()
+                            }));
+                        }
+                        // Only overwrite if destination is empty (don't clobber real data)
+                        if (!appState.weeklyData.weeks[1][dayIdx] || appState.weeklyData.weeks[1][dayIdx].calories === 0) {
+                            appState.weeklyData.weeks[1][dayIdx] = { ...slot };
+                        }
+
+                        // Clear the ghost slot from current week
+                        currentWeek[dayIdx] = {
+                            calories: 0, protein: 0, meals: [], date: today.toISOString()
+                        };
+                        fixed = true;
+                    }
+                }
+
+                if (fixed) {
+                    console.log('✅ Ghost data cleared from current week.');
+                    saveState();
+                }
+            }
+        }
+
+        // Check if date changed and reset daily data if needed
+        async function checkDateChange() {
+            const today = new Date();
+            const todayString = today.toDateString(); // e.g., "Sun Feb 08 2026"
+            const todayDayOfWeek = today.getDay(); // 0 = Sunday
+            
+            // If lastDate doesn't exist, set it to today
+            if (!appState.lastDate) {
+                appState.lastDate = todayString;
+                await saveState();
+                return;
+            }
+            
+            // Check if date changed
+            if (appState.lastDate !== todayString) {
+                console.log('📅 Date changed! Processing week transition...');
+                
+                // Parse the last date to check if we crossed into a new week
+                const lastDate = new Date(appState.lastDate);
+                const lastDayOfWeek = lastDate.getDay();
+                
+                // CRITICAL: Check if we've moved to a new week (today is Sunday and yesterday was NOT Sunday)
+                // We must shift BEFORE syncing yesterday's data
+                if (todayDayOfWeek === 0 && lastDayOfWeek !== 0) {
+                    console.log('🔄 New week detected! Shifting weeks array...');
+                    
+                    // Create a new empty week for the current week
+                    const newWeek = Array(7).fill(null).map(() => ({
+                        calories: 0,
+                        protein: 0,
+                        meals: [],
+                        date: new Date().toISOString()
+                    }));
+                    
+                    // Unshift: add new week to the beginning, making old weeks[0] become weeks[1]
+                    appState.weeklyData.weeks.unshift(newWeek);
+                    
+                    // Pop: remove the last week to keep array size at 52
+                    appState.weeklyData.weeks.pop();
+                    
+                    console.log('✅ Weeks shifted. Old current week is now weeks[1].');
+                }
+                
+                // Now sync yesterday's data to the correct week
+                // If we just shifted, Saturday data goes to weeks[1][6]
+                // If we didn't shift (Mon-Sat), data goes to weeks[0][yesterday]
+                syncYesterdayToWeekly(lastDate, lastDayOfWeek);
+                
+                // Get yesterday's stats for the notification
+                const yesterdayCalories = appState.todayData.calories;
+                
+                // Reset daily counters
+                appState.todayData = {
+                    calories: 0,
+                    steps: 0,
+                    water: 0,
+                    protein: 0,
+                    meals: []
+                };
+                
+                // Create new daily log in Supabase for today
+                await createTodayLog();
+                
+                // Update lastDate to today
+                appState.lastDate = todayString;
+                
+                // Save the updated state
+                await saveState();
+                
+                console.log('✅ Daily data reset complete!');
+                
+                // Show notification to user
+                setTimeout(() => {
+                    showNotification(`🌅 יום חדש! אתמול: ${yesterdayCalories} קלוריות`);
+                }, 500);
+            }
+        }
+
+        // Sync yesterday's data to the correct week slot
+        function syncYesterdayToWeekly(yesterdayDate, yesterdayDayOfWeek) {
+            const today = new Date();
+            const todayDayOfWeek = today.getDay();
+            
+            // Make sure weekly data exists
+            if (!appState.weeklyData.weeks || appState.weeklyData.weeks.length === 0) {
+                initializeWeeklyData();
+            }
+            
+            // Determine which week index to save to
+            let targetWeekIndex = 0; // Default to current week
+            
+            // If today is Sunday and yesterday was Saturday, we already shifted
+            // So yesterday's data belongs to weeks[1] (the previous week)
+            if (todayDayOfWeek === 0 && yesterdayDayOfWeek === 6) {
+                targetWeekIndex = 1; // Last week (we just shifted)
+                console.log(`💾 Syncing Saturday data to weeks[1][6] (last week)`);
+            } else {
+                // Normal case: same week, just yesterday
+                targetWeekIndex = 0; // Current week
+                console.log(`💾 Syncing yesterday's data to weeks[0][${yesterdayDayOfWeek}] (current week)`);
+            }
+            
+            // Make sure the target week exists
+            if (!appState.weeklyData.weeks[targetWeekIndex]) {
+                console.error(`Week index ${targetWeekIndex} doesn't exist!`);
+                return;
+            }
+            
+            // Save yesterday's full data to the correct slot (including meals)
+            appState.weeklyData.weeks[targetWeekIndex][yesterdayDayOfWeek] = {
+                calories: appState.todayData.calories,
+                protein: appState.todayData.protein,
+                meals: JSON.parse(JSON.stringify(appState.todayData.meals)), // Deep copy
+                date: yesterdayDate.toISOString()
+            };
+            
+            console.log(`✅ Data saved: ${appState.todayData.calories} calories to weeks[${targetWeekIndex}][${yesterdayDayOfWeek}]`);
+        }
+
+        // Remove the old shiftWeeklyData function - we do it inline now
+
+        // Initialize weekly data structure
+        function initializeWeeklyData() {
+            appState.weeklyData.weeks = Array(52).fill(null).map(() => 
+                Array(7).fill(null).map(() => ({
+                    calories: 0,
+                    protein: 0,
+                    meals: [],
+                    date: new Date().toISOString()
+                }))
+            );
+        }
+
+        // Sync today's data to weekly dashboard (for real-time updates during the day)
+        function syncTodayToWeekly() {
+            const today = new Date();
+            const todayDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+            const weekIndex = 0; // Always sync current day to current week (weeks[0])
+            
+            // Make sure weekly data exists
+            if (!appState.weeklyData.weeks || !appState.weeklyData.weeks[weekIndex]) {
+                initializeWeeklyData();
+            }
+            
+            // Sync today's full data to the current week (including meals array)
+            appState.weeklyData.weeks[weekIndex][todayDayOfWeek] = {
+                calories: appState.todayData.calories,
+                protein: appState.todayData.protein,
+                meals: JSON.parse(JSON.stringify(appState.todayData.meals)), // Deep copy
+                date: today.toISOString()
+            };
+            
+            // Always update the chart - works in background even if not on dashboard tab
+            if (weeklyChart) {
+                updateWeeklyChart();
+            }
+        }
+
+        // Save state
+        // Old saveState removed - using async version above
+        
+        // Charts
+        let donutChart, weeklyChart;
+
+        function initCharts() {
+            // Donut Chart
+            const donutCtx = document.getElementById('donutChart').getContext('2d');
+            donutChart = new Chart(donutCtx, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [0, 2000],
+                        backgroundColor: [
+                            'rgba(139, 92, 246, 0.9)',
+                            'rgba(255, 255, 255, 0.15)'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    cutout: '75%',
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    }
+                }
+            });
+
+            // Weekly Chart
+            const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
+            weeklyChart = new Chart(weeklyCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['א\'', 'ב\'', 'ג\'', 'ד\'', 'ה\'', 'ו\'', 'ש\''],
+                    datasets: [{
+                        label: 'קלוריות',
+                        data: [0, 0, 0, 0, 0, 0, 0],
+                        backgroundColor: 'rgba(139, 92, 246, 0.85)',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    onClick: (event, activeElements) => {
+                        if (activeElements.length > 0) {
+                            const dayIndex = activeElements[0].index;
+                            showDayDetail(dayIndex);
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: 'white' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Navigation
+        function showScreen(screen) {
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            // Remove active from all nav items
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            // Show selected screen
+            document.getElementById(`screen-${screen}`).classList.remove('hidden');
+            document.getElementById(`nav-${screen}`).classList.add('active');
+            
+            appState.currentScreen = screen;
+        }
+
+        function showSettings() {
+            showScreen('settings');
+            
+            // Update display texts - only show if user has selected values
+            if (appState.settings.height) {
+                document.getElementById('heightDisplay').textContent = appState.settings.height + ' ס"מ';
+            }
+            
+            if (appState.settings.weight) {
+                const displayValue = appState.settings.weight % 1 === 0 ? appState.settings.weight : appState.settings.weight.toFixed(1);
+                document.getElementById('weightDisplay').textContent = displayValue + ' ק"ג';
+            }
+            
+            if (appState.settings.age) {
+                document.getElementById('ageDisplay').textContent = appState.settings.age + ' שנים';
+            }
+        }
+
+        // Water Glasses
+        // Steps
+        let selectedSteps = 0;
+
+        function showStepsPicker() {
+            const wheel = document.getElementById('stepsWheel');
+            wheel.innerHTML = '';
+            
+            // Create padding elements for better scrolling
+            const padding = document.createElement('div');
+            padding.style.height = '128px';
+            wheel.appendChild(padding.cloneNode());
+            
+            // Create options from 0 to 20000 in steps of 100
+            for (let i = 0; i <= 20000; i += 100) {
+                const option = document.createElement('div');
+                option.className = 'step-option';
+                option.textContent = i.toLocaleString();
+                option.dataset.value = i;
+                wheel.appendChild(option);
+            }
+            
+            wheel.appendChild(padding.cloneNode());
+            
+            // Scroll to middle (around 5000)
+            setTimeout(() => {
+                const targetIndex = 50; // 5000 steps
+                const targetOption = wheel.children[targetIndex + 1];
+                if (targetOption) {
+                    targetOption.scrollIntoView({ block: 'center' });
+                }
+                updateSelectedStep();
+            }, 50);
+            
+            // Add scroll listener
+            wheel.addEventListener('scroll', updateSelectedStep);
+            
+            document.getElementById('modalStepsPicker').classList.remove('hidden');
+        }
+
+        function updateSelectedStep() {
+            const wheel = document.getElementById('stepsWheel');
+            const wheelRect = wheel.getBoundingClientRect();
+            const centerY = wheelRect.top + wheelRect.height / 2;
+            
+            let closestOption = null;
+            let closestDistance = Infinity;
+            
+            const options = wheel.querySelectorAll('.step-option');
+            options.forEach(option => {
+                const rect = option.getBoundingClientRect();
+                const optionCenterY = rect.top + rect.height / 2;
+                const distance = Math.abs(centerY - optionCenterY);
+                
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestOption = option;
+                }
+                
+                option.classList.remove('selected');
+            });
+            
+            if (closestOption) {
+                closestOption.classList.add('selected');
+                selectedSteps = parseInt(closestOption.dataset.value);
+            }
+        }
+
+        function confirmSteps() {
+            if (selectedSteps > 0) {
+                appState.todayData.steps += selectedSteps;
+                updateHomeScreen();
+                saveState();
+                showNotification(`נוספו ${selectedSteps.toLocaleString()} צעדים! ✓`);
+            }
+            closeModal('modalStepsPicker');
+        }
+
+        // Update Home Screen
+        function updateHomeScreen() {
+            // Calories
+            const consumed = appState.todayData.calories;
+            const goal = appState.settings.dailyGoal;
+            const remaining = Math.max(0, goal - consumed);
+            
+            document.getElementById('caloriesConsumed').textContent = consumed;
+            document.getElementById('caloriesGoal').textContent = goal;
+            document.getElementById('caloriesRemaining').textContent = `נותרו: ${remaining}`;
+            
+            // Update donut chart
+            donutChart.data.datasets[0].data = [
+                consumed,
+                Math.max(0, goal - consumed)
+            ];
+            donutChart.update();
+
+            // Steps
+            document.getElementById('stepsCount').textContent = appState.todayData.steps.toLocaleString();
+            const stepsPercent = Math.min(100, (appState.todayData.steps / 10000) * 100);
+            document.getElementById('stepsProgress').style.width = stepsPercent + '%';
+            
+            // Update settings displays
+            if (appState.settings.currentWeight) {
+                document.getElementById('currentWeightDisplay').textContent = appState.settings.currentWeight.toFixed(1) + ' ק"ג';
+            }
+            if (appState.settings.height) {
+                document.getElementById('heightDisplay').textContent = appState.settings.height + ' ס"מ';
+            }
+            if (appState.settings.weight) {
+                document.getElementById('weightDisplay').textContent = appState.settings.weight + ' ק"ג';
+            }
+            if (appState.settings.age) {
+                document.getElementById('ageDisplay').textContent = appState.settings.age + ' שנים';
+            }
+        }
+
+        // Saved Meals
+        // ========================
+        // CUSTOM ICON DROPDOWN
+        // ========================
+
+        function renderIconSelector() {
+            // Populate both dropdown menus
+            [
+                { menuId: 'iconDropdownMenu',     hiddenId: 'iconSelector',     selectedId: 'iconDropdownSelected',     dropdownId: 'iconDropdown' },
+                { menuId: 'editIconDropdownMenu', hiddenId: 'editIconSelector', selectedId: 'editIconDropdownSelected', dropdownId: 'editIconDropdown' }
+            ].forEach(({ menuId, hiddenId, selectedId, dropdownId }) => {
+                const menu = document.getElementById(menuId);
+                if (!menu) return;
+                menu.innerHTML = '';
+                foodIcons.forEach(icon => {
+                    const li = document.createElement('li');
+                    li.className = 'icon-dropdown-item';
+                    li.textContent = icon;
+                    li.dataset.icon = icon;
+                    li.onclick = () => selectDropdownIcon(dropdownId, icon);
+                    menu.appendChild(li);
+                });
+            });
+        }
+
+        function toggleIconDropdown(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            const menu = dropdown.querySelector('.icon-dropdown-menu');
+            const isOpen = !menu.classList.contains('hidden');
+
+            // Close all open dropdowns first
+            closeAllIconDropdowns();
+
+            if (!isOpen) {
+                menu.classList.remove('hidden');
+                dropdown.classList.add('open');
+
+                // Smart direction: check if there's enough space below
+                const triggerRect = dropdown.getBoundingClientRect();
+                const spaceBelow = window.innerHeight - triggerRect.bottom;
+                const menuHeight = 192 + 12; // max-height + gap
+
+                if (spaceBelow < menuHeight) {
+                    menu.classList.add('opens-up');
+                } else {
+                    menu.classList.remove('opens-up');
+                }
+            }
+        }
+
+        function selectDropdownIcon(dropdownId, icon) {
+            const dropdown = document.getElementById(dropdownId);
+            // Update the visible trigger label
+            dropdown.querySelector('.icon-dropdown-selected').textContent = icon;
+            // Update the hidden input value
+            const hiddenInput = dropdown.querySelector('input[type="hidden"]');
+            hiddenInput.value = icon;
+            // Mark selected item
+            dropdown.querySelectorAll('.icon-dropdown-item').forEach(item => {
+                item.classList.toggle('selected', item.dataset.icon === icon);
+            });
+            // Close the menu
+            closeAllIconDropdowns();
+        }
+
+        function closeAllIconDropdowns() {
+            document.querySelectorAll('.icon-dropdown').forEach(d => {
+                d.classList.remove('open');
+                const menu = d.querySelector('.icon-dropdown-menu');
+                menu.classList.add('hidden');
+                menu.classList.remove('opens-up');
+            });
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.icon-dropdown')) {
+                closeAllIconDropdowns();
+            }
+        });
+
+        function showAddMeal() {
+            if (appState.savedMeals.length >= 20) {
+                alert('הגעת למקסימום 20 מנות קבועות');
+                return;
+            }
+            document.getElementById('modalAddMeal').classList.remove('hidden');
+        }
+
+        function saveMeal() {
+            const name = document.getElementById('newMealName').value;
+            const weight = document.getElementById('newMealWeight').value;
+            const calories = document.getElementById('newMealCalories').value;
+            const icon = document.getElementById('iconSelector').value || '🍽️';
+
+            if (!name || !weight || !calories) {
+                alert('נא למלא את כל השדות');
+                return;
+            }
+
+            appState.savedMeals.push({
+                id: Date.now(),
+                name,
+                weight: parseInt(weight),
+                calories: parseInt(calories),
+                icon
+            });
+
+            renderSavedMeals();
+            saveState();
+            closeModal('modalAddMeal');
+            
+            // Reset form
+            document.getElementById('newMealName').value = '';
+            document.getElementById('newMealWeight').value = '';
+            document.getElementById('newMealCalories').value = '';
+            // Reset dropdown to first icon
+            selectDropdownIcon('iconDropdown', foodIcons[0]);
+        }
+
+        function renderSavedMeals() {
+            const list = document.getElementById('savedMealsList');
+            list.innerHTML = '';
+
+            if (appState.savedMeals.length === 0) {
+                list.innerHTML = '<div class="text-white opacity-60 text-center py-8">אין מנות קבועות</div>';
+                document.getElementById('mealCount').textContent = '0';
+                return;
+            }
+
+            appState.savedMeals.forEach(meal => {
+                // Ensure old meals have icons
+                if (!meal.icon) {
+                    meal.icon = '🍽️';
+                }
+                
+                const div = document.createElement('div');
+                div.className = 'meal-item';
+                div.dataset.id = meal.id; // Add data-id for sortable
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="drag-handle cursor-move text-white opacity-40 hover:opacity-70 transition-opacity">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                    <circle cx="9" cy="5" r="1.5"/>
+                                    <circle cx="15" cy="5" r="1.5"/>
+                                    <circle cx="9" cy="12" r="1.5"/>
+                                    <circle cx="15" cy="12" r="1.5"/>
+                                    <circle cx="9" cy="19" r="1.5"/>
+                                    <circle cx="15" cy="19" r="1.5"/>
+                                </svg>
+                            </div>
+                            <div class="text-3xl">${meal.icon}</div>
+                            <div>
+                                <div class="text-white font-semibold">${meal.name}</div>
+                                <div class="text-white opacity-70 text-sm">${meal.weight}g • ${meal.calories} קלוריות</div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="editMeal(${meal.id})" class="btn-secondary text-sm px-3 py-1">ערוך</button>
+                            <button onclick="deleteMeal(${meal.id})" class="delete-btn text-sm px-3 py-1">מחק</button>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+
+            document.getElementById('mealCount').textContent = appState.savedMeals.length;
+            
+            // Initialize Sortable after rendering
+            initSortable();
+        }
+
+        function deleteMeal(id) {
+            if (confirm('למחוק מנה זו?')) {
+                appState.savedMeals = appState.savedMeals.filter(m => m.id !== id);
+                renderSavedMeals();
+                saveState();
+            }
+        }
+
+        // Initialize Sortable for drag & drop reordering
+        function initSortable() {
+            const list = document.getElementById('savedMealsList');
+            
+            // Destroy existing Sortable instance if exists
+            if (list.sortableInstance) {
+                list.sortableInstance.destroy();
+            }
+            
+            list.sortableInstance = Sortable.create(list, {
+                // ── Visual classes ──────────────────────────────────
+                ghostClass:    'sortable-ghost',   // hollow placeholder
+                dragClass:     'sortable-drag',    // the floating clone
+                chosenClass:   'sortable-chosen',  // original item while dragging
+                fallbackClass: 'sortable-drag',    // fallback = same style
+
+                // ── Physics ─────────────────────────────────────────
+                animation: 250,          // sibling slide speed (ms)
+                easing: 'cubic-bezier(0.2, 0, 0, 1.6)', // springy overshoot
+                forceFallback: true,     // required for dragClass to apply
+
+                // ── Touch feel ──────────────────────────────────────
+              
+                touchStartThreshold: 5,  // px of movement allowed during delay
+                handle: '.drag-handle',
+                fallbackTolerance: 3,
+
+                // Lift: animate item "up" when grab starts
+                onChoose: function(evt) {
+                    evt.item.style.willChange = 'transform, box-shadow';
+                },
+
+                // Drop: clean up inline styles so CSS takes over
+                onUnchoose: function(evt) {
+                    evt.item.style.willChange = '';
+                    evt.item.style.transform  = '';
+                    evt.item.style.boxShadow  = '';
+                    evt.item.style.opacity    = '';
+                },
+
+                // Persist new order to appState
+                onEnd: function(evt) {
+                    evt.item.style.willChange = '';
+                    evt.item.style.transform  = '';
+                    evt.item.style.boxShadow  = '';
+                    evt.item.style.opacity    = '';
+
+                    const newOrder = [];
+                    list.querySelectorAll('.meal-item').forEach(item => {
+                        const id   = parseInt(item.dataset.id);
+                        const meal = appState.savedMeals.find(m => m.id === id);
+                        if (meal) newOrder.push(meal);
+                    });
+                    appState.savedMeals = newOrder;
+                    saveState();
+                }
+            });
+        }
+
+        // CSV Import Function with Hebrew encoding support
+        function importFromCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // First, try to read as ArrayBuffer to detect encoding
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const arrayBuffer = e.target.result;
+                const uint8Array = new Uint8Array(arrayBuffer);
+                
+                // Try to decode with different encodings
+                let csvContent = '';
+                
+                // Check if it's UTF-8 (first few bytes won't have high values for Hebrew in UTF-8)
+                const hasHighBytes = uint8Array.some(byte => byte > 127);
+                
+                if (hasHighBytes) {
+                    // Likely Windows-1255 (Hebrew)
+                    try {
+                        const decoder = new TextDecoder('windows-1255');
+                        csvContent = decoder.decode(uint8Array);
+                    } catch (err) {
+                        // Fallback to UTF-8
+                        const decoder = new TextDecoder('utf-8');
+                        csvContent = decoder.decode(uint8Array);
+                    }
+                } else {
+                    // Regular UTF-8 or ASCII
+                    const decoder = new TextDecoder('utf-8');
+                    csvContent = decoder.decode(uint8Array);
+                }
+
+                // Now process the CSV
+                processCSV(csvContent);
+                
+                // Reset file input
+                event.target.value = '';
+            };
+
+            reader.onerror = function() {
+                showNotification('❌ שגיאה בקריאת הקובץ');
+                event.target.value = '';
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Process CSV content
+        function processCSV(csvContent) {
+            try {
+                const lines = csvContent.split('\n');
+                let importedCount = 0;
+                let skippedCount = 0;
+
+                lines.forEach((line, index) => {
+                    // Skip empty lines
+                    if (!line.trim()) {
+                        return;
+                    }
+
+                    // Parse CSV line
+                    const parts = line.split(',').map(part => part.trim());
+                    
+                    if (parts.length < 3) {
+                        skippedCount++;
+                        return;
+                    }
+
+                    const name = parts[0];
+                    const weight = parseFloat(parts[1]);
+                    const calories = parseFloat(parts[2]);
+
+                    // Validate data
+                    if (!name || isNaN(weight) || isNaN(calories) || weight <= 0 || calories <= 0) {
+                        skippedCount++;
+                        return;
+                    }
+
+                    // Check if we've reached the 20 meal limit
+                    if (appState.savedMeals.length >= 20) {
+                        showNotification('⚠️ הגעת למקסימום 20 מנות. חלק מהמנות לא יובאו.');
+                        return;
+                    }
+
+                    // Create new meal object
+                    const newMeal = {
+                        id: Date.now() + Math.random() * 1000 + index, // Unique ID
+                        name: name,
+                        weight: weight,
+                        calories: calories,
+                        icon: '🍽️' // Default icon
+                    };
+
+                    // Add to saved meals
+                    appState.savedMeals.push(newMeal);
+                    importedCount++;
+                });
+
+                // Update UI and save
+                if (importedCount > 0) {
+                    renderSavedMeals();
+                    saveState();
+                    showNotification(`✅ יובאו ${importedCount} מנות בהצלחה!` + (skippedCount > 0 ? ` (${skippedCount} שורות דולגו)` : ''));
+                } else {
+                    showNotification('❌ לא נמצאו מנות תקינות לייבוא');
+                }
+
+            } catch (error) {
+                console.error('CSV Import Error:', error);
+                showNotification('❌ שגיאה בעיבוד קובץ CSV');
+            }
+        }
+
+        let editingMealId = null;
+        // editSelectedIcon removed - icon now read directly from dropdown
+
+        function editMeal(id) {
+            const meal = appState.savedMeals.find(m => m.id === id);
+            if (!meal) return;
+
+            editingMealId = id;
+
+            document.getElementById('editMealName').value = meal.name;
+            document.getElementById('editMealWeight').value = meal.weight;
+            document.getElementById('editMealCalories').value = meal.calories;
+
+            // Set the custom dropdown to the meal's current icon
+            selectDropdownIcon('editIconDropdown', meal.icon || '🍽️');
+
+            document.getElementById('modalEditMeal').classList.remove('hidden');
+        }
+
+        function updateMeal() {
+            const name = document.getElementById('editMealName').value;
+            const weight = document.getElementById('editMealWeight').value;
+            const calories = document.getElementById('editMealCalories').value;
+            const icon = document.getElementById('editIconSelector').value || '🍽️';
+
+            if (!name || !weight || !calories) {
+                alert('נא למלא את כל השדות');
+                return;
+            }
+
+            const mealIndex = appState.savedMeals.findIndex(m => m.id === editingMealId);
+            if (mealIndex !== -1) {
+                appState.savedMeals[mealIndex] = {
+                    id: editingMealId,
+                    name,
+                    weight: parseInt(weight),
+                    calories: parseInt(calories),
+                    icon
+                };
+
+                renderSavedMeals();
+                saveState();
+                closeModal('modalEditMeal');
+                showNotification('המנה עודכנה בהצלחה! ✓');
+            }
+        }
+
+        // Daily Tracking
+        function showAddManual() {
+            document.getElementById('modalAddManual').classList.remove('hidden');
+        }
+
+        async function addManualMeal() {
+            const name = document.getElementById('manualMealName').value;
+            const calories = document.getElementById('manualMealCalories').value;
+
+            if (!name || !calories) {
+                alert('נא למלא לפחות שם וקלוריות');
+                return;
+            }
+
+            await addMealToToday({
+                name,
+                calories: parseInt(calories),
+                icon: '🍽️',
+                time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+            });
+
+            closeModal('modalAddManual');
+            
+            // Reset form
+            document.getElementById('manualMealName').value = '';
+            document.getElementById('manualMealCalories').value = '';
+        }
+
+        function showAddFromSaved() {
+            if (appState.savedMeals.length === 0) {
+                alert('אין מנות קבועות. צור מנה חדשה תחילה.');
+                return;
+            }
+
+            const container = document.getElementById('savedMealsSelect');
+            container.innerHTML = '';
+
+            appState.savedMeals.forEach(meal => {
+                const div = document.createElement('div');
+                div.className = 'meal-item';
+                div.onclick = () => addSavedMealToToday(meal);
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="text-2xl">${meal.icon}</div>
+                        <div>
+                            <div class="text-white font-semibold">${meal.name}</div>
+                            <div class="text-white opacity-70 text-sm">${meal.weight}g • ${meal.calories} קלוריות</div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            document.getElementById('modalAddFromSaved').classList.remove('hidden');
+        }
+
+        async function addSavedMealToToday(meal) {
+            await addMealToToday({
+                name: meal.name,
+                calories: meal.calories,
+                protein: Math.round(meal.weight * 0.2), // Estimate 20% protein
+                icon: meal.icon || '🍽️', // Use meal icon or default
+                time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+            });
+            closeModal('modalAddFromSaved');
+        }
+
+        async function addMealToToday(meal) {
+            console.log('🍽️ addMealToToday called with:', meal);
+            
+            // Ensure icon exists
+            if (!meal.icon) {
+                meal.icon = '🍽️';
+            }
+            
+            // Add quantity property (default 1.0) and store baseCalories
+            if (!meal.quantity) {
+                meal.quantity = 1.0;
+            }
+            if (!meal.baseCalories) {
+                meal.baseCalories = meal.calories; // Store original calories
+            }
+            
+            appState.todayData.meals.push(meal);
+            appState.todayData.calories += meal.calories;
+            
+            console.log('   Total meals now:', appState.todayData.meals.length);
+            console.log('   Total calories now:', appState.todayData.calories);
+            
+            renderTodayMeals();
+            updateHomeScreen();
+            syncTodayToWeekly(); // Sync to dashboard + update chart immediately
+            updateWeeklyChart(); // Explicit call to ensure chart updates in background
+            
+            console.log('   Calling saveState...');
+            // Wait for save to complete
+            await saveState();
+            console.log('   saveState completed');
+            
+            // Show success feedback
+            showNotification('המנה נוספה בהצלחה! ✓');
+        }
+        
+        // Simple notification system
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(79, 172, 254, 0.95);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 12px;
+                font-weight: 600;
+                z-index: 9999;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                animation: slideDown 0.3s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideUp 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 2000);
+        }
+
+        function renderTodayMeals() {
+            const container = document.getElementById('todayMeals');
+            
+            if (!container) {
+                console.error('todayMeals container not found');
+                return;
+            }
+            
+            container.innerHTML = '';
+
+            if (!appState.todayData.meals || appState.todayData.meals.length === 0) {
+                container.innerHTML = '<div class="text-white opacity-60 text-center py-8">עדיין לא נוספו מנות להיום</div>';
+                return;
+            }
+
+            appState.todayData.meals.forEach((meal, index) => {
+                // Ensure quantity exists (for old data)
+                if (!meal.quantity) meal.quantity = 1.0;
+                if (!meal.baseCalories) meal.baseCalories = meal.calories;
+                
+                const div = document.createElement('div');
+                div.className = 'meal-item';
+                
+                // Show quantity if not 1.0
+                const quantityText = meal.quantity !== 1.0 ? ` (×${meal.quantity.toFixed(1)})` : '';
+                
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="text-3xl">${meal.icon || '🍽️'}</div>
+                            <div>
+                                <div class="text-white font-semibold">${meal.name}${quantityText}</div>
+                                <div class="text-white opacity-70 text-sm">${meal.calories} קלוריות • ${meal.time}</div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="editMealQuantity(${index})" class="btn-secondary text-sm px-3 py-1">ערוך</button>
+                            <button onclick="removeMealFromToday(${index})" class="delete-btn text-sm px-3 py-1">הסר</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function removeMealFromToday(index) {
+            const meal = appState.todayData.meals[index];
+            appState.todayData.calories -= meal.calories;
+            appState.todayData.meals.splice(index, 1);
+            
+            renderTodayMeals();
+            updateHomeScreen();
+            syncTodayToWeekly(); // Sync to dashboard + update chart immediately
+            updateWeeklyChart(); // Explicit call to ensure chart updates in background
+            await saveState();
+        }
+
+        // Weekly Dashboard
+        function updateWeeklyChart() {
+            // Always check and fix week structure when viewing dashboard
+            fixWeekDataStructure();
+            
+            const weekIndex = appState.weeklyData.currentWeek;
+            const weekData = appState.weeklyData.weeks[weekIndex] || Array(7).fill({ calories: 0 });
+            
+            weeklyChart.data.datasets[0].data = weekData.map(d => d.calories);
+            weeklyChart.update();
+
+            // Update summary - only count days with calories > 0
+            const total = weekData.reduce((sum, d) => sum + d.calories, 0);
+            const daysWithData = weekData.filter(d => d.calories > 0).length;
+            const avg = daysWithData > 0 ? Math.round(total / daysWithData) : 0;
+            const onTarget = weekData.filter(d => 
+                d.calories >= appState.settings.dailyGoal * 0.9 && 
+                d.calories <= appState.settings.dailyGoal * 1.1
+            ).length;
+
+            document.getElementById('avgDaily').textContent = avg + ' קלוריות';
+            document.getElementById('totalWeekly').textContent = total.toLocaleString() + ' קלוריות';
+            document.getElementById('daysOnTarget').textContent = `${onTarget}/7`;
+
+            // Update week display
+            updateWeekDisplay();
+        }
+
+        function updateWeekDisplay() {
+            const today = new Date();
+            const weekIndex = appState.weeklyData.currentWeek || 0;
+            
+            // Calculate the start of the current week (this Sunday)
+            const todayDayOfWeek = today.getDay(); // 0 = Sunday
+            const currentWeekSunday = new Date(today);
+            currentWeekSunday.setDate(today.getDate() - todayDayOfWeek);
+            
+            // Go back by weekIndex weeks (0 = current, 1 = last week, 2 = 2 weeks ago, etc.)
+            const startDate = new Date(currentWeekSunday);
+            startDate.setDate(currentWeekSunday.getDate() - (weekIndex * 7));
+            
+            // End date is 6 days after start (Saturday)
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+
+            const format = (date) => {
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = String(date.getFullYear()).slice(-2); // Last 2 digits of year
+                return `${day}/${month}/${year}`;
+            };
+
+            document.getElementById('weekDisplay').textContent = 
+                `${format(startDate)} - ${format(endDate)}`;
+        }
+
+        function previousWeek() {
+            // Go to an older week (increase index: 0->1, 1->2, etc.)
+            // Maximum 4 weeks back (index 0-4)
+            if (appState.weeklyData.currentWeek < 4) {
+                appState.weeklyData.currentWeek++;
+                updateWeeklyChart();
+                console.log(`📊 Viewing week index: ${appState.weeklyData.currentWeek}`);
+            }
+        }
+
+        function nextWeek() {
+            // Go to a newer week (decrease index: 2->1, 1->0)
+            // Minimum is current week (index 0)
+            if (appState.weeklyData.currentWeek > 0) {
+                appState.weeklyData.currentWeek--;
+                updateWeeklyChart();
+                console.log(`📊 Viewing week index: ${appState.weeklyData.currentWeek}`);
+            }
+        }
+
+        // Show detailed view for a specific day
+        function showDayDetail(dayIndex) {
+            const weekIndex = appState.weeklyData.currentWeek || 0;
+            const dayData = appState.weeklyData.weeks[weekIndex][dayIndex];
+            
+            if (!dayData || dayData.calories === 0) {
+                showNotification('אין נתונים ליום זה');
+                return;
+            }
+
+            // Hide chart and summary
+            document.querySelector('.glass-card:has(#weeklyChart)').classList.add('hidden');
+            document.getElementById('weeklySummarySection').classList.add('hidden');
+            
+            // Show day detail view
+            document.getElementById('dayDetailView').classList.remove('hidden');
+            
+            // Format date and day name
+            const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+            const date = new Date(dayData.date);
+            const dayName = dayNames[dayIndex];
+            const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+            
+            // Update title
+            document.getElementById('dayDetailTitle').textContent = `יום ${dayName}, ${dateStr}`;
+            document.getElementById('dayDetailCalories').textContent = dayData.calories;
+            document.getElementById('dayDetailProtein').textContent = dayData.protein || 0;
+            
+            // Render meals
+            const mealsContainer = document.getElementById('dayDetailMeals');
+            mealsContainer.innerHTML = '';
+            
+            if (!dayData.meals || dayData.meals.length === 0) {
+                mealsContainer.innerHTML = '<div class="text-white opacity-60 text-center py-4">אין מנות ליום זה</div>';
+                return;
+            }
+            
+            dayData.meals.forEach(meal => {
+                const div = document.createElement('div');
+                div.className = 'meal-item';
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="text-3xl">${meal.icon || '🍽️'}</div>
+                            <div>
+                                <div class="text-white font-semibold">${meal.name}</div>
+                                <div class="text-white opacity-70 text-sm">
+                                    ${meal.calories} קלוריות • ${meal.protein}g חלבון • ${meal.time}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                mealsContainer.appendChild(div);
+            });
+        }
+
+        function closeDayDetail() {
+            // Show chart and summary
+            document.querySelector('.glass-card:has(#weeklyChart)').classList.remove('hidden');
+            document.getElementById('weeklySummarySection').classList.remove('hidden');
+            
+            // Hide day detail view
+            document.getElementById('dayDetailView').classList.add('hidden');
+        }
+
+        // Settings - Height/Weight/Age Pickers
+        function openHeightPicker() {
+            const wheel = document.getElementById('heightWheel');
+            wheel.innerHTML = '';
+            
+            // Create height options from 140cm to 220cm
+            for (let i = 140; i <= 220; i++) {
+                const div = document.createElement('div');
+                div.className = 'step-option';
+                div.textContent = i;
+                div.dataset.value = i;
+                wheel.appendChild(div);
+            }
+            
+            document.getElementById('modalHeightPicker').classList.remove('hidden');
+            
+            // Scroll to current value or default (170)
+            const currentHeight = appState.settings.height || 170;
+            const targetIndex = currentHeight - 140;
+            setTimeout(() => {
+                wheel.scrollTop = targetIndex * 64 - 96;
+            }, 100);
+            
+            setupWheelScroll('heightWheel');
+        }
+
+        function openWeightPicker() {
+            const wheel = document.getElementById('weightWheel');
+            wheel.innerHTML = '';
+            
+            // Create weight options from 40kg to 200kg with 0.5 increments
+            for (let i = 40; i <= 200; i += 0.5) {
+                const div = document.createElement('div');
+                div.className = 'step-option';
+                div.textContent = i % 1 === 0 ? i : i.toFixed(1);
+                div.dataset.value = i;
+                wheel.appendChild(div);
+            }
+            
+            document.getElementById('modalWeightPicker').classList.remove('hidden');
+            
+            // Scroll to current value or default (70)
+            const currentWeight = appState.settings.weight || 70;
+            const targetIndex = (currentWeight - 40) * 2; // *2 because we have 0.5 increments
+            setTimeout(() => {
+                wheel.scrollTop = targetIndex * 64 - 96;
+            }, 100);
+            
+            setupWheelScroll('weightWheel');
+        }
+
+        function openAgePicker() {
+            const wheel = document.getElementById('ageWheel');
+            wheel.innerHTML = '';
+            
+            // Create age options from 15 to 100
+            for (let i = 15; i <= 100; i++) {
+                const div = document.createElement('div');
+                div.className = 'step-option';
+                div.textContent = i;
+                div.dataset.value = i;
+                wheel.appendChild(div);
+            }
+            
+            document.getElementById('modalAgePicker').classList.remove('hidden');
+            
+            // Scroll to current value or default (35)
+            const currentAge = appState.settings.age || 35;
+            const targetIndex = currentAge - 15;
+            setTimeout(() => {
+                wheel.scrollTop = targetIndex * 64 - 96;
+            }, 100);
+            
+            setupWheelScroll('ageWheel');
+        }
+
+        function confirmHeight() {
+            const wheel = document.getElementById('heightWheel');
+            const items = wheel.querySelectorAll('.step-option');
+            
+            // Find the item closest to center
+            const containerRect = wheel.getBoundingClientRect();
+            const centerY = containerRect.top + containerRect.height / 2;
+            
+            let closestItem = null;
+            let closestDistance = Infinity;
+            
+            items.forEach(item => {
+                const itemRect = item.getBoundingClientRect();
+                const itemCenterY = itemRect.top + itemRect.height / 2;
+                const distance = Math.abs(centerY - itemCenterY);
+                
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestItem = item;
+                }
+            });
+            
+            if (closestItem) {
+                const value = parseInt(closestItem.dataset.value);
+                appState.settings.height = value;
+                document.getElementById('heightDisplay').textContent = value + ' ס"מ';
+                closeModal('modalHeightPicker');
+                saveState();
+            }
+        }
+
+        function confirmWeight() {
+            const wheel = document.getElementById('weightWheel');
+            const items = wheel.querySelectorAll('.step-option');
+            
+            // Find the item closest to center
+            const containerRect = wheel.getBoundingClientRect();
+            const centerY = containerRect.top + containerRect.height / 2;
+            
+            let closestItem = null;
+            let closestDistance = Infinity;
+            
+            items.forEach(item => {
+                const itemRect = item.getBoundingClientRect();
+                const itemCenterY = itemRect.top + itemRect.height / 2;
+                const distance = Math.abs(centerY - itemCenterY);
+                
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestItem = item;
+                }
+            });
+            
+            if (closestItem) {
+                const value = parseFloat(closestItem.dataset.value);
+                appState.settings.weight = value;
+                const displayValue = value % 1 === 0 ? value : value.toFixed(1);
+                document.getElementById('weightDisplay').textContent = displayValue + ' ק"ג';
+                closeModal('modalWeightPicker');
+                saveState();
+            }
+        }
+
+        function confirmAge() {
+            const wheel = document.getElementById('ageWheel');
+            const items = wheel.querySelectorAll('.step-option');
+            
+            // Find the item closest to center
+            const containerRect = wheel.getBoundingClientRect();
+            const centerY = containerRect.top + containerRect.height / 2;
+            
+            let closestItem = null;
+            let closestDistance = Infinity;
+            
+            items.forEach(item => {
+                const itemRect = item.getBoundingClientRect();
+                const itemCenterY = itemRect.top + itemRect.height / 2;
+                const distance = Math.abs(centerY - itemCenterY);
+                
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestItem = item;
+                }
+            });
+            
+            if (closestItem) {
+                const value = parseInt(closestItem.dataset.value);
+                appState.settings.age = value;
+                document.getElementById('ageDisplay').textContent = value + ' שנים';
+                closeModal('modalAgePicker');
+                saveState();
+            }
+        }
+
+        // Current Weight Picker Functions
+        function openCurrentWeightPicker() {
+            const wheel = document.getElementById('currentWeightWheel');
+            wheel.innerHTML = '';
+            
+            // Create weight options from 40kg to 200kg in 0.5kg increments
+            for (let i = 40; i <= 200; i += 0.5) {
+                const div = document.createElement('div');
+                div.className = 'step-option';
+                div.textContent = i.toFixed(1);
+                div.dataset.value = i;
+                wheel.appendChild(div);
+            }
+            
+            document.getElementById('modalCurrentWeightPicker').classList.remove('hidden');
+            
+            // Scroll to current weight
+            const currentWeight = appState.settings.currentWeight || 70;
+            const targetIndex = (currentWeight - 40) * 2; // *2 because we have 0.5 increments
+            setTimeout(() => {
+                if (wheel.children[targetIndex]) {
+                    wheel.children[targetIndex].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+            }, 100);
+        }
+
+        function confirmCurrentWeight() {
+            const wheel = document.getElementById('currentWeightWheel');
+            const items = wheel.querySelectorAll('.step-option');
+            
+            // Find the item closest to center
+            const containerRect = wheel.getBoundingClientRect();
+            const centerY = containerRect.top + containerRect.height / 2;
+            
+            let closestItem = null;
+            let closestDistance = Infinity;
+            
+            items.forEach(item => {
+                const itemRect = item.getBoundingClientRect();
+                const itemCenterY = itemRect.top + itemRect.height / 2;
+                const distance = Math.abs(centerY - itemCenterY);
+                
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestItem = item;
+                }
+            });
+            
+            if (closestItem) {
+                const value = parseFloat(closestItem.dataset.value);
+                appState.settings.currentWeight = value;
+                document.getElementById('currentWeightDisplay').textContent = value.toFixed(1) + ' ק"ג';
+                closeModal('modalCurrentWeightPicker');
+                saveState();
+            }
+        }
+
+        // Quantity Picker Functions
+        let editingMealIndex = null;
+        let currentQuantity = 1.0;
+
+        function editMealQuantity(mealIndex) {
+            editingMealIndex = mealIndex;
+            const meal = appState.todayData.meals[mealIndex];
+            
+            // Ensure meal has quantity
+            if (!meal.quantity) meal.quantity = 1.0;
+            
+            // Set current quantity
+            currentQuantity = meal.quantity;
+            
+            // Update display and open modal
+            updateQuantityDisplay();
+            document.getElementById('modalQuantityPicker').classList.remove('hidden');
+        }
+
+        function updateQuantityDisplay() {
+            document.getElementById('quantityDisplay').textContent = currentQuantity.toFixed(1);
+        }
+
+        function increaseQuantity() {
+            if (currentQuantity < 5.0) {
+                currentQuantity = Math.round((currentQuantity + 0.5) * 10) / 10;
+                updateQuantityDisplay();
+            }
+        }
+
+        function decreaseQuantity() {
+            if (currentQuantity > 0.5) {
+                currentQuantity = Math.round((currentQuantity - 0.5) * 10) / 10;
+                updateQuantityDisplay();
+            }
+        }
+
+        function setQuantity(value) {
+            currentQuantity = value;
+            updateQuantityDisplay();
+        }
+
+        async function confirmQuantity() {
+            if (editingMealIndex === null) return;
+            
+            const meal = appState.todayData.meals[editingMealIndex];
+            
+            // Store baseCalories if not already stored
+            if (!meal.baseCalories) {
+                meal.baseCalories = meal.calories;
+            }
+            
+            // Update calories based on new quantity
+            const oldCalories = meal.calories;
+            const newCalories = Math.round(meal.baseCalories * currentQuantity);
+            
+            // Update totals
+            appState.todayData.calories = appState.todayData.calories - oldCalories + newCalories;
+            
+            // Update meal
+            meal.quantity = currentQuantity;
+            meal.calories = newCalories;
+            
+            // Update UI
+            renderTodayMeals();
+            updateHomeScreen();
+            syncTodayToWeekly(); // Sync to dashboard + update chart immediately
+            updateWeeklyChart(); // Explicit call to ensure chart updates in background
+            await saveState();
+            
+            closeModal('modalQuantityPicker');
+            showNotification(`הכמות עודכנה ל-${currentQuantity.toFixed(1)}`);
+            
+            editingMealIndex = null;
+        }
+
+        function calculateBMR() {
+            const height = appState.settings.height;
+            const weight = appState.settings.weight;
+            const age = appState.settings.age;
+            const gender = document.getElementById('bmrGender').value;
+            const activity = parseFloat(document.getElementById('bmrActivity').value);
+
+            if (!height || !weight || !age || !gender || !activity) {
+                alert('נא למלא את כל השדות');
+                return;
+            }
+
+            // Mifflin-St Jeor Formula
+            let bmr;
+            if (gender === 'male') {
+                bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5;
+            } else {
+                bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161;
+            }
+
+            const tdee = Math.round(bmr * activity);
+
+            document.getElementById('bmrResult').innerHTML = `
+                BMR: ${Math.round(bmr)} קלוריות<br>
+                TDEE: ${tdee} קלוריות (כולל פעילות)<br>
+                <button onclick="useTDEE(${tdee})" class="btn-secondary mt-2">השתמש כיעד יומי</button>
+            `;
+        }
+
+        function useTDEE(tdee) {
+            appState.settings.dailyGoal = tdee;
+            saveState();
+            updateHomeScreen();
+            showNotification('היעד היומי נשמר בהצלחה! 🎯');
+        }
+
+        // Modal helpers
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // ========================
+        // AI CAMERA FUNCTIONS
+        // ========================
+        function triggerAICamera() {
+            // Opens the rear camera directly on mobile (capture="environment")
+            document.getElementById('aiCameraInput').click();
+        }
+
+        function triggerAIGallery() {
+            // Opens the photo library / file picker (no capture attribute)
+            document.getElementById('aiGalleryInput').click();
+        }
+
+        function resetAIScan() {
+            document.getElementById('aiScanArea').classList.remove('hidden');
+            document.getElementById('aiProcessingArea').classList.add('hidden');
+            document.getElementById('aiResultArea').classList.add('hidden');
+        }
+
+        async function handleAIImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Show processing state
+            document.getElementById('aiScanArea').classList.add('hidden');
+            document.getElementById('aiProcessingArea').classList.remove('hidden');
+            document.getElementById('aiResultArea').classList.add('hidden');
+
+            try {
+                // Convert image to base64
+                const base64Image = await fileToBase64(file);
+                
+                // Analyze with Gemini AI
+                const result = await analyzeImageWithGemini(base64Image);
+                
+                // Show result (do NOT auto-add to log)
+                displayAIResult(result);
+                
+            } catch (error) {
+                console.error('AI Analysis Error:', error);
+                showNotification('שגיאה בניתוח התמונה. נסה שוב.');
+                resetAIScan();
+            }
+
+            // Reset file input
+            event.target.value = '';
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => {
+                    // Remove data:image/...;base64, prefix using regex
+                    const base64 = reader.result.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+                    resolve(base64);
+                };
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        async function analyzeImageWithGemini(base64Image) {
+            console.log("🚀 Calling Secure AI Proxy (Image Mode)...");
+            
+            const { data, error } = await supabaseClient.functions.invoke('gemini-proxy', {
+                body: { 
+                    image: base64Image,
+                    mode: 'plate'
+                }
+            });
+            
+            if (error) throw new Error('AI Proxy Error: ' + error.message);
+            
+            return data;
+        }
+
+        function displayAIResult(result) {
+            // Store result for later use by buttons
+            lastAIResult = result;
+            
+            document.getElementById('aiProcessingArea').classList.add('hidden');
+            document.getElementById('aiResultArea').classList.remove('hidden');
+
+            const resultContent = document.getElementById('aiResultContent');
+            resultContent.innerHTML = `
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-white opacity-70">שם המנה:</span>
+                        <span class="text-white font-bold text-lg">${result.name}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-white opacity-70">משקל:</span>
+                        <span class="text-white font-bold">${result.weight}g</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-white opacity-70">קלוריות:</span>
+                        <span class="text-white font-bold text-xl" style="color: var(--accent-primary);">${result.calories}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function addMealFromAI(result) {
+            const meal = {
+                id: Date.now(),
+                icon: '🍽️',
+                name: result.name,
+                calories: result.calories,
+                weight: result.weight,
+                time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+            };
+
+            appState.todayData.meals.push(meal);
+            appState.todayData.calories += result.calories;
+
+            saveState();
+            updateHomeScreen();
+            renderTodayMeals();
+            syncTodayToWeekly();
+        }
+
+        // New function: Add to today's log from AI result
+        function addToTodayFromAI() {
+            if (!lastAIResult) return;
+            
+            addMealFromAI(lastAIResult);
+            
+            // Show success notification
+            showNotification('נוסף בהצלחה! 🎉');
+            
+            // Wait a moment for notification, then switch to home screen
+            setTimeout(() => {
+                showScreen('home');
+            }, 800);
+        }
+
+        // New function: Save to meal library from AI result
+        function saveToLibraryFromAI() {
+            if (!lastAIResult) return;
+            
+            saveAIMealToLibrary(lastAIResult);
+            
+            // Show success notification
+            showNotification('נוסף בהצלחה! 🎉');
+            
+            // Wait a moment for notification, then switch to home screen
+            setTimeout(() => {
+                showScreen('home');
+            }, 800);
+        }
+
+        // New function: Save AI meal to library (savedMeals)
+        function saveAIMealToLibrary(result) {
+            const savedMeal = {
+                id: Date.now(),
+                icon: '🍽️',
+                name: result.name,
+                calories: result.calories,
+                weight: result.weight
+            };
+
+            // Add to beginning of array
+            appState.savedMeals.unshift(savedMeal);
+            
+            // Keep only 20 most recent meals
+            if (appState.savedMeals.length > 20) {
+                appState.savedMeals = appState.savedMeals.slice(0, 20);
+            }
+
+            saveState();
+            renderSavedMeals();
+        }
+
+        // ========================
+        // RECIPE MODE FUNCTIONS
+        // ========================
+        let currentAIMode = 'plate'; // 'plate' or 'recipe'
+        let lastRecipeResult = null;
+
+        function switchAIMode(mode) {
+            currentAIMode = mode;
+            
+            // Update button styles
+            const plateBtn = document.getElementById('modePlate');
+            const recipeBtn = document.getElementById('modeRecipe');
+            
+            if (mode === 'plate') {
+                plateBtn.classList.add('bg-white/10');
+                plateBtn.classList.remove('opacity-60');
+                recipeBtn.classList.remove('bg-white/10');
+                recipeBtn.classList.add('opacity-60');
+                
+                // Show plate mode, hide recipe mode
+                document.getElementById('plateModeContent').classList.remove('hidden');
+                document.getElementById('recipeModeContent').classList.add('hidden');
+            } else {
+                recipeBtn.classList.add('bg-white/10');
+                recipeBtn.classList.remove('opacity-60');
+                plateBtn.classList.remove('bg-white/10');
+                plateBtn.classList.add('opacity-60');
+                
+                // Show recipe mode, hide plate mode
+                document.getElementById('plateModeContent').classList.add('hidden');
+                document.getElementById('recipeModeContent').classList.remove('hidden');
+            }
+        }
+
+        function triggerRecipeImageUpload() {
+            document.getElementById('recipeImageInput').click();
+        }
+
+        async function analyzeRecipeText() {
+            const text = document.getElementById('recipeTextInput').value.trim();
+            
+            if (!text) {
+                alert('נא להזין טקסט מתכון');
+                return;
+            }
+
+            // Show processing state
+            document.getElementById('recipeInputArea').classList.add('hidden');
+            document.getElementById('recipeProcessingArea').classList.remove('hidden');
+            document.getElementById('recipeResultArea').classList.add('hidden');
+
+            try {
+                const result = await analyzeRecipeWithGemini(text, 'text');
+                displayRecipeResult(result);
+            } catch (error) {
+                console.error('Recipe Analysis Error:', error);
+                showNotification('שגיאה בניתוח המתכון. נסה שוב.');
+                resetRecipeAnalysis();
+            }
+        }
+
+        async function handleRecipeImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Show processing state
+            document.getElementById('recipeInputArea').classList.add('hidden');
+            document.getElementById('recipeProcessingArea').classList.remove('hidden');
+            document.getElementById('recipeResultArea').classList.add('hidden');
+
+            try {
+                const base64Image = await fileToBase64(file);
+                const result = await analyzeRecipeWithGemini(base64Image, 'image');
+                displayRecipeResult(result);
+            } catch (error) {
+                console.error('Recipe Analysis Error:', error);
+                showNotification('שגיאה בניתוח המתכון. נסה שוב.');
+                resetRecipeAnalysis();
+            }
+
+            event.target.value = '';
+        }
+
+        async function analyzeRecipeWithGemini(input, inputType) {
+            console.log("🚀 Calling Secure AI Proxy (Recipe Mode)...");
+            
+            const requestBody = { mode: 'recipe' };
+            
+            if (inputType === 'text') {
+                requestBody.text = input;
+            } else {
+                requestBody.image = input;
+            }
+            
+            const { data, error } = await supabaseClient.functions.invoke('gemini-proxy', {
+                body: requestBody
+            });
+            
+            if (error) throw new Error('AI Proxy Error: ' + error.message);
+            
+            return data;
+        }
+
+        function displayRecipeResult(result) {
+            lastRecipeResult = result;
+            
+            document.getElementById('recipeProcessingArea').classList.add('hidden');
+            document.getElementById('recipeResultArea').classList.remove('hidden');
+
+            const resultContent = document.getElementById('recipeResultContent');
+            resultContent.innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <div class="text-white opacity-70 text-sm mb-1">שם המתכון:</div>
+                        <div class="text-white font-bold text-xl">${result.name}</div>
+                    </div>
+                    
+                    ${result.ingredients ? `
+                    <div>
+                        <div class="text-white opacity-70 text-sm mb-1">רכיבים:</div>
+                        <div class="text-white text-sm">${result.ingredients}</div>
+                    </div>
+                    ` : ''}
+                    
+                    <div class="border-t border-white/10 pt-4 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-white opacity-70">סה"כ קלוריות במנה:</span>
+                            <span class="text-white font-bold text-lg">${result.totalCalories}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-white opacity-70">משקל כולל:</span>
+                            <span class="text-white font-bold">${result.totalWeight}g</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                            <span class="text-white font-semibold">קלוריות ל-100 גרם:</span>
+                            <span class="text-white font-bold text-2xl" style="color: var(--accent-primary);">${result.caloriesPer100g}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function addRecipeToTodayFromAI() {
+            if (!lastRecipeResult) return;
+            
+            const meal = {
+                id: Date.now(),
+                icon: '📖',
+                name: lastRecipeResult.name + ' (100g)',
+                calories: lastRecipeResult.caloriesPer100g,
+                weight: 100,
+                time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+            };
+
+            appState.todayData.meals.push(meal);
+            appState.todayData.calories += meal.calories;
+
+            saveState();
+            updateHomeScreen();
+            renderTodayMeals();
+            syncTodayToWeekly();
+            
+            showNotification('נוסף בהצלחה! 🎉');
+            
+            setTimeout(() => {
+                showScreen('home');
+            }, 800);
+        }
+
+        function saveRecipeToLibraryFromAI() {
+            if (!lastRecipeResult) return;
+            
+            const savedMeal = {
+                id: Date.now(),
+                icon: '📖',
+                name: lastRecipeResult.name + ' (100g)',
+                calories: lastRecipeResult.caloriesPer100g,
+                weight: 100
+            };
+
+            appState.savedMeals.unshift(savedMeal);
+            
+            if (appState.savedMeals.length > 20) {
+                appState.savedMeals = appState.savedMeals.slice(0, 20);
+            }
+
+            saveState();
+            renderSavedMeals();
+            
+            showNotification('נוסף בהצלחה! 🎉');
+            
+            setTimeout(() => {
+                showScreen('home');
+            }, 800);
+        }
+
+        function resetRecipeAnalysis() {
+            document.getElementById('recipeInputArea').classList.remove('hidden');
+            document.getElementById('recipeProcessingArea').classList.add('hidden');
+            document.getElementById('recipeResultArea').classList.add('hidden');
+            document.getElementById('recipeTextInput').value = '';
+            lastRecipeResult = null;
+        }
+
+        // Initialize app
+        window.onload = async function() {
+            await init();
+        };
+    </script>
+</body>
+</html>
