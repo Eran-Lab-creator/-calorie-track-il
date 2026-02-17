@@ -3952,17 +3952,33 @@
 
         async function analyzeImageWithGemini(base64Image) {
             console.log("🚀 Calling Secure AI Proxy (Image Mode)...");
-            
-            const { data, error } = await supabaseClient.functions.invoke('gemini-proxy', {
-                body: { 
-                    image: base64Image,
-                    mode: 'plate'
+
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session?.access_token) {
+                showNotification('פג תוקף ההתחברות — אנא התחבר מחדש');
+                throw new Error('No active session');
+            }
+
+            const response = await fetch(
+                `${SUPABASE_URL}/functions/v1/gemini-proxy`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':  'application/json',
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'apikey':        SUPABASE_ANON_KEY
+                    },
+                    body: JSON.stringify({ image: base64Image, mode: 'plate' })
                 }
-            });
-            
-            if (error) throw new Error('AI Proxy Error: ' + error.message);
-            
-            return data;
+            );
+
+            if (!response.ok) {
+                const errText = await response.text();
+                console.error('❌ Edge function error:', response.status, errText);
+                throw new Error(`AI Proxy Error ${response.status}: ${errText}`);
+            }
+
+            return await response.json();
         }
 
         function displayAIResult(result) {
@@ -4147,22 +4163,40 @@
 
         async function analyzeRecipeWithGemini(input, inputType) {
             console.log("🚀 Calling Secure AI Proxy (Recipe Mode)...");
-            
+
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session?.access_token) {
+                showNotification('פג תוקף ההתחברות — אנא התחבר מחדש');
+                throw new Error('No active session');
+            }
+
             const requestBody = { mode: 'recipe' };
-            
             if (inputType === 'text') {
                 requestBody.text = input;
             } else {
                 requestBody.image = input;
             }
-            
-            const { data, error } = await supabaseClient.functions.invoke('gemini-proxy', {
-                body: requestBody
-            });
-            
-            if (error) throw new Error('AI Proxy Error: ' + error.message);
-            
-            return data;
+
+            const response = await fetch(
+                `${SUPABASE_URL}/functions/v1/gemini-proxy`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':  'application/json',
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'apikey':        SUPABASE_ANON_KEY
+                    },
+                    body: JSON.stringify(requestBody)
+                }
+            );
+
+            if (!response.ok) {
+                const errText = await response.text();
+                console.error('❌ Edge function error:', response.status, errText);
+                throw new Error(`AI Proxy Error ${response.status}: ${errText}`);
+            }
+
+            return await response.json();
         }
 
         function displayRecipeResult(result) {
