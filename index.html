@@ -1265,7 +1265,7 @@
                 </div>
 
                 <div class="text-center text-white opacity-60 text-sm mt-4">
-                    <span id="mealCount">0</span>/20 מנות
+                    <span id="mealCount">0</span>/40 מנות
                 </div>
             </div>
 
@@ -2898,8 +2898,8 @@
         });
 
         function showAddMeal() {
-            if (appState.savedMeals.length >= 20) {
-                alert('הגעת למקסימום 20 מנות קבועות');
+            if (appState.savedMeals.length >= 40) {
+                alert('הגעת למקסימום 40 מנות קבועות');
                 return;
             }
             document.getElementById('modalAddMeal').classList.remove('hidden');
@@ -3136,8 +3136,8 @@
                     }
 
                     // Check if we've reached the 20 meal limit
-                    if (appState.savedMeals.length >= 20) {
-                        showNotification('⚠️ הגעת למקסימום 20 מנות. חלק מהמנות לא יובאו.');
+                    if (appState.savedMeals.length >= 40) {
+                        showNotification('⚠️ הגעת למקסימום 40 מנות. חלק מהמנות לא יובאו.');
                         return;
                     }
 
@@ -4069,9 +4069,9 @@
             // Add to beginning of array
             appState.savedMeals.unshift(savedMeal);
             
-            // Keep only 20 most recent meals
-            if (appState.savedMeals.length > 20) {
-                appState.savedMeals = appState.savedMeals.slice(0, 20);
+            // Keep only 40 most recent meals
+            if (appState.savedMeals.length > 40) {
+                appState.savedMeals = appState.savedMeals.slice(0, 40);
             }
 
             saveState();
@@ -4278,8 +4278,8 @@
 
             appState.savedMeals.unshift(savedMeal);
             
-            if (appState.savedMeals.length > 20) {
-                appState.savedMeals = appState.savedMeals.slice(0, 20);
+            if (appState.savedMeals.length > 40) {
+                appState.savedMeals = appState.savedMeals.slice(0, 40);
             }
 
             saveState();
