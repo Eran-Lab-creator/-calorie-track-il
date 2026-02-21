@@ -1081,7 +1081,7 @@
     </div>
 
     <!-- Main App (shown when logged in) -->
-    <div id="app" class="max-w-md mx-auto pb-20 pt-6 px-4 relative hidden">
+    <div id="app" class="max-w-md mx-auto pb-24 pt-6 px-4 relative hidden">
         <!-- Settings Icon (Top Left) -->
         <div class="absolute top-6 left-4 z-50">
             <button onclick="showSettings()" class="glass-card p-3 rounded-full text-white hover:scale-110 transition-all">
@@ -1138,7 +1138,7 @@
 
             <!-- Dashboard Screen -->
             <div id="screen-dashboard" class="screen hidden">
-                <h2 class="text-3xl font-bold text-white mb-6" style="font-family: 'Assistant', sans-serif;">דשבורד שבועי</h2>
+                <h2 class="text-2xl font-bold text-white mb-4" style="font-family: 'Assistant', sans-serif;">דשבורד שבועי</h2>
                 
                 <!-- Week Navigation -->
                 <div class="glass-card p-4 mb-3 flex items-center justify-between">
@@ -1165,18 +1165,18 @@
                 </div>
 
                 <!-- Weekly Summary -->
-                <div id="weeklySummarySection" class="glass-card p-6">
-                    <h3 class="text-xl font-bold text-white mb-4">סיכום שבועי</h3>
-                    <div class="space-y-3">
-                        <div class="flex justify-between text-white">
+                <div id="weeklySummarySection" class="glass-card p-3 mb-20">
+                    <h3 class="text-base font-bold text-white mb-2">סיכום שבועי</h3>
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between text-white text-sm">
                             <span class="opacity-80">ממוצע יומי:</span>
                             <span class="font-bold" id="avgDaily">0</span>
                         </div>
-                        <div class="flex justify-between text-white">
+                        <div class="flex justify-between text-white text-sm">
                             <span class="opacity-80">סה"כ שבועי:</span>
                             <span class="font-bold" id="totalWeekly">0</span>
                         </div>
-                        <div class="flex justify-between text-white">
+                        <div class="flex justify-between text-white text-sm">
                             <span class="opacity-80">גרעון/עודף קלוריות:</span>
                             <span class="font-bold" id="weeklyDeficit">0</span>
                         </div>
@@ -3595,20 +3595,25 @@
                 return;
             }
             
-            dayData.meals.forEach(meal => {
+            dayData.meals.forEach((meal, mealIndex) => {
                 const div = document.createElement('div');
                 div.className = 'meal-item';
                 div.innerHTML = `
                     <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3 flex-1">
                             <div class="text-3xl">${meal.icon || '🍽️'}</div>
-                            <div>
+                            <div class="flex-1">
                                 <div class="text-white font-semibold">${meal.name}</div>
                                 <div class="text-white opacity-70 text-sm">
                                     ${meal.calories} קלוריות • ${meal.protein}g חלבון • ${meal.time}
                                 </div>
                             </div>
                         </div>
+                        <button onclick="deleteDayMeal(${weekIndex}, ${dayIndex}, ${mealIndex})" class="text-red-400 hover:text-red-300 p-2 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
                     </div>
                 `;
                 mealsContainer.appendChild(div);
@@ -3622,6 +3627,47 @@
             
             // Hide day detail view
             document.getElementById('dayDetailView').classList.add('hidden');
+        }
+
+        async function deleteDayMeal(weekIndex, dayIndex, mealIndex) {
+            if (!confirm('האם למחוק את המנה?')) return;
+
+            const dayData = appState.weeklyData.weeks[weekIndex][dayIndex];
+            if (!dayData || !dayData.meals) return;
+
+            // Remove meal from array
+            const deletedMeal = dayData.meals[mealIndex];
+            dayData.meals.splice(mealIndex, 1);
+
+            // Recalculate calories and protein
+            dayData.calories = dayData.meals.reduce((sum, m) => sum + (m.calories || 0), 0);
+            dayData.protein = dayData.meals.reduce((sum, m) => sum + (m.protein || 0), 0);
+
+            // Update in Supabase
+            const userId = getUserId();
+            if (userId && supabaseClient) {
+                try {
+                    await supabaseClient
+                        .from('daily_logs')
+                        .update({
+                            total_calories: dayData.calories,
+                            protein: dayData.protein,
+                            meals: dayData.meals,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('user_id', userId)
+                        .eq('date', dayData.date);
+                    
+                    console.log(`✅ Meal deleted from ${dayData.date}`);
+                } catch (error) {
+                    console.error('❌ Error deleting meal:', error);
+                }
+            }
+
+            // Refresh the view
+            showDayDetail(dayIndex);
+            updateWeeklyChart();
+            showNotification('המנה נמחקה');
         }
 
         // Settings - Height/Weight/Age Pickers
