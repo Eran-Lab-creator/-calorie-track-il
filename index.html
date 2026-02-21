@@ -1177,8 +1177,8 @@
                             <span class="font-bold" id="totalWeekly">0</span>
                         </div>
                         <div class="flex justify-between text-white">
-                            <span class="opacity-80">ימים ביעד:</span>
-                            <span class="font-bold" id="daysOnTarget">0/7</span>
+                            <span class="opacity-80">גרעון/עודף קלוריות:</span>
+                            <span class="font-bold" id="weeklyDeficit">0</span>
                         </div>
                     </div>
                 </div>
@@ -3460,18 +3460,51 @@
             
             weeklyChart.update();
 
-            // Update summary - only count days with calories > 0
-            const total = weekData.reduce((sum, d) => sum + d.calories, 0);
-            const daysWithData = weekData.filter(d => d.calories > 0).length;
-            const avg = daysWithData > 0 ? Math.round(total / daysWithData) : 0;
-            const onTarget = weekData.filter(d => 
-                d.calories >= appState.settings.dailyGoal * 0.9 && 
-                d.calories <= appState.settings.dailyGoal * 1.1
-            ).length;
-
+            // Update summary calculations
+            // Only count days with data (calories > 0) AND that have ended (date < today in Israel time)
+            
+            // Get current date/time in Israel (UTC+2)
+            const nowUTC = new Date();
+            const israelOffset = 2 * 60; // UTC+2 in minutes
+            const nowIsrael = new Date(nowUTC.getTime() + israelOffset * 60 * 1000);
+            const todayIsrael = new Date(nowIsrael.getFullYear(), nowIsrael.getMonth(), nowIsrael.getDate());
+            
+            // Filter: only completed days with data
+            const completedDaysWithData = weekData.filter(d => {
+                if (d.calories <= 0) return false; // No data
+                const dayDate = new Date(d.date);
+                const dayDateOnly = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate());
+                return dayDateOnly < todayIsrael; // Day has ended
+            });
+            
+            const total = completedDaysWithData.reduce((sum, d) => sum + d.calories, 0);
+            const daysCount = completedDaysWithData.length;
+            const avg = daysCount > 0 ? Math.round(total / daysCount) : 0;
+            
+            // Calculate deficit/surplus: (TDEE × days) - actual calories
+            const expectedCalories = weekTdee * daysCount;
+            const deficit = expectedCalories - total; // Positive = deficit (good), Negative = surplus (bad)
+            
             document.getElementById('avgDaily').textContent = avg + ' קלוריות';
             document.getElementById('totalWeekly').textContent = total.toLocaleString() + ' קלוריות';
-            document.getElementById('daysOnTarget').textContent = `${onTarget}/7`;
+            
+            // Display deficit/surplus with color coding
+            const deficitEl = document.getElementById('weeklyDeficit');
+            if (deficit > 0) {
+                // Deficit (good) - green
+                deficitEl.textContent = `-${deficit.toLocaleString()} קלוריות`;
+                deficitEl.style.color = 'rgba(34, 197, 94, 0.9)';
+            } else if (deficit < 0) {
+                // Surplus (bad) - red
+                deficitEl.textContent = `+${Math.abs(deficit).toLocaleString()} קלוריות`;
+                deficitEl.style.color = 'rgba(239, 68, 68, 0.9)';
+            } else {
+                // Exactly on target
+                deficitEl.textContent = '0 קלוריות';
+                deficitEl.style.color = 'white';
+            }
+            
+            console.log('📊 Summary: days:', daysCount, 'total:', total, 'expected:', expectedCalories, 'deficit:', deficit);
 
             // Update week display
             updateWeekDisplay();
