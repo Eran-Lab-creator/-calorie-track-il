@@ -3296,6 +3296,8 @@
             });
 
             document.getElementById('modalAddFromSaved').classList.remove('hidden');
+            // Add to history so back button can close the modal
+            history.pushState({ modal: 'modalAddFromSaved' }, '', window.location.href);
         }
 
         async function addSavedMealToToday(meal) {
@@ -3440,13 +3442,12 @@
             weeklyChart.data.datasets[0].data = weekData.map(d => d.calories > 0 ? d.calories : null);
             
             // Update TDEE line - ensure we always have 7 values
-            // Use the most common TDEE value in the week, or fallback to settings
-            const tdeeValues = weekData.map(d => d.tdee).filter(t => t && t !== 0);
-            const weekTdee = tdeeValues.length > 0 
-                ? tdeeValues.sort((a,b) => 
-                    tdeeValues.filter(v => v === a).length - tdeeValues.filter(v => v === b).length
-                  ).pop()
+            // Take TDEE from Sunday (day 0) as it's always the most up-to-date for current week
+            const weekTdee = (weekData[0]?.tdee && weekData[0].tdee !== 0) 
+                ? weekData[0].tdee 
                 : (appState.settings.dailyGoal || 2000);
+            
+            console.log('📊 Using Sunday TDEE:', weekData[0]?.tdee, 'Final weekTdee:', weekTdee);
             
             // CRITICAL: Fill ALL 7 positions with the week's TDEE value
             // This ensures the line extends across the entire chart
@@ -4546,6 +4547,34 @@
                 }
             });
         };
+
+        // Handle Android back button - close modals instead of exiting app
+        window.addEventListener('popstate', function(event) {
+            // Check if any modal is open
+            const openModals = [
+                'modalAddFromSaved',
+                'modalAddManual',
+                'modalAddMeal',
+                'modalStepsPicker',
+                'modalWaterPicker',
+                'modalHeightPicker',
+                'modalWeightPicker',
+                'modalAgePicker'
+            ];
+            
+            for (const modalId of openModals) {
+                const modal = document.getElementById(modalId);
+                if (modal && !modal.classList.contains('hidden')) {
+                    modal.classList.add('hidden');
+                    // Prevent going back in history
+                    history.pushState(null, '', window.location.href);
+                    return;
+                }
+            }
+        });
+
+        // Push initial state to enable back button handling
+        history.pushState(null, '', window.location.href);
     </script>
 </body>
 </html>
