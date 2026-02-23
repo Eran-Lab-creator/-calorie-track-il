@@ -1017,6 +1017,65 @@
         }
         .pw-toggle:hover { color: rgba(255,255,255,0.85); }
         .pw-toggle svg { width: 18px; height: 18px; }
+
+        /* --- Advanced 3.1 Donut CSS --- */
+        .cyber-title {
+            font-family: 'Assistant', sans-serif; /* Fallback to existing font */
+            font-size: 32px;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: 2px;
+            text-align: center;
+            background: linear-gradient(to bottom, #FFFFFF 0%, #A78BFA 50%, #8B5CF6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0px 5px 10px rgba(139, 92, 246, 0.4));
+            animation: float-title 6s ease-in-out infinite;
+        }
+        @keyframes float-title {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+        }
+        .donut-wrapper {
+            position: relative;
+            width: 250px;
+            height: 250px;
+            margin: 0 auto;
+        }
+        .donut-center-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+            width: 100%;
+        }
+        .donut-value {
+            font-size: 42px;
+            font-weight: 700;
+            line-height: 1;
+            color: #FFFFFF;
+            text-shadow: 0 0 20px rgba(139, 92, 246, 0.8);
+            direction: ltr;
+        }
+        .donut-label {
+            font-size: 14px;
+            color: #94A3B8;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+        .donut-remaining {
+            color: #4ade80; 
+            font-weight: 800;
+            font-size: 16px;
+            margin-top: 8px;
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
+            direction: rtl;
+        }
     </style>
 </head>
 <body>
@@ -1096,20 +1155,65 @@
         <div id="content" class="fade-in">
             <!-- Home Screen (Default) -->
             <div id="screen-home" class="screen">
-                <h1 class="text-4xl font-bold text-white text-center mb-8 floating" style="font-family: 'Assistant', sans-serif;">
-                    CalorieTrack IL
+                <h1 class="cyber-title mb-8">
+                    CALORIE TRACK
                 </h1>
 
                 <!-- Calorie Donut Chart -->
-                <div class="glass-card p-8 mb-6">
-                    <div class="relative mx-auto" style="width: 250px; height: 250px;">
-                        <canvas id="donutChart"></canvas>
-                        <div class="absolute inset-0 flex flex-col items-center justify-center">
-                            <div class="text-4xl font-bold text-white" id="caloriesConsumed">0</div>
-                            <div class="text-sm text-white opacity-80">מתוך <span id="caloriesGoal">2000</span></div>
-                            <div class="text-xs text-white opacity-60 mt-1">קלוריות</div>
-                            <div class="text-sm font-semibold mt-2 text-green-400" id="caloriesRemaining">נותרו: 2000</div>
+                <div class="glass-card p-6 rounded-3xl text-center mb-6">
+                    <div class="donut-wrapper">
+                        <div class="donut-center-text">
+                            <span id="caloriesConsumedDisplay" class="donut-value">0</span>
+                            <span class="donut-label">קלוריות נצרכו</span>
+                            <span id="caloriesRemainingDisplay" class="donut-remaining">נותרו: 2000</span>
                         </div>
+                        <svg width="250" height="250" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <filter id="cinematic-bloom" x="-50%" y="-50%" width="200%" height="200%">
+                                    <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur1" />
+                                    <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur2" />
+                                    <feGaussianBlur in="SourceGraphic" stdDeviation="20" result="blur3" />
+                                    <feMerge>
+                                        <feMergeNode in="blur3" />
+                                        <feMergeNode in="blur2" />
+                                        <feMergeNode in="blur1" />
+                                        <feMergeNode in="SourceGraphic" />
+                                    </feMerge>
+                                </filter>
+                                <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#D946EF" />
+                                    <stop offset="50%" stop-color="#8B5CF6" />
+                                    <stop offset="100%" stop-color="#06B6D4" />
+                                </linearGradient>
+                                <radialGradient id="plasmaGrad" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stop-color="rgba(139, 92, 246, 0.4)" />
+                                    <stop offset="70%" stop-color="rgba(139, 92, 246, 0.1)" />
+                                    <stop offset="100%" stop-color="rgba(139, 92, 246, 0)" />
+                                </radialGradient>
+                            </defs>
+                            <path fill="url(#plasmaGrad)" transform="translate(150, 150)">
+                                <animate attributeName="d" dur="8s" repeatCount="indefinite"
+                                         values="
+                                            M 0 -80 C 40 -80, 80 -40, 80 0 C 80 40, 40 80, 0 80 C -40 80, -80 40, -80 0 C -80 -40, -40 -80, 0 -80 Z;
+                                            M 0 -70 C 50 -90, 90 -30, 70 20 C 50 70, 20 90, -20 70 C -60 50, -90 10, -70 -30 C -50 -70, -30 -50, 0 -70 Z;
+                                            M 0 -90 C 30 -70, 70 -50, 90 0 C 70 50, 30 70, 0 90 C -30 70, -70 50, -90 0 C -70 -50, -30 -70, 0 -90 Z;
+                                            M 0 -80 C 40 -80, 80 -40, 80 0 C 80 40, 40 80, 0 80 C -40 80, -80 40, -80 0 C -80 -40, -40 -80, 0 -80 Z" 
+                                         keyTimes="0; 0.33; 0.66; 1"/>
+                            </path>
+                            <circle cx="150" cy="150" r="135" fill="none" stroke="#4ade80" stroke-width="1" stroke-dasharray="2 10 50 15" opacity="0.3">
+                                <animateTransform attributeName="transform" type="rotate" from="360 150 150" to="0 150 150" dur="30s" repeatCount="indefinite"/>
+                            </circle>
+                            <circle cx="150" cy="150" r="95" fill="none" stroke="#D946EF" stroke-width="1" stroke-dasharray="100 200" opacity="0.6">
+                                <animateTransform attributeName="transform" type="rotate" from="0 150 150" to="360 150 150" dur="8s" repeatCount="indefinite"/>
+                            </circle>
+                            <circle cx="150" cy="150" r="115" fill="none" stroke="rgba(255, 255, 255, 0.05)" stroke-width="18" />
+                            <circle cx="150" cy="150" r="115" fill="none" stroke="rgba(0, 0, 0, 0.5)" stroke-width="22" filter="blur(4px)" opacity="0.5"/>
+                            <circle id="calorieDonutCircle" cx="150" cy="150" r="115" fill="none" 
+                                    stroke="url(#progressGrad)" stroke-width="18" stroke-linecap="round" filter="url(#cinematic-bloom)"
+                                    transform="rotate(-90 150 150)" stroke-dasharray="722" stroke-dashoffset="722">
+                                <animate id="donutAnim" attributeName="stroke-dashoffset" from="722" to="722" dur="1.5s" fill="freeze" calcMode="spline" keySplines="0.25 0.1 0.25 1" />
+                            </circle>
+                        </svg>
                     </div>
                 </div>
 
@@ -2607,33 +2711,11 @@
 
         function initCharts() {
             // Destroy existing instances to prevent "Canvas already in use" error
-            if (donutChart) { donutChart.destroy(); donutChart = null; }
+            // Donut chart is now SVG-based, so we only need weeklyChart
             if (weeklyChart) { weeklyChart.destroy(); weeklyChart = null; }
 
-            // Donut Chart
-            const donutCtx = document.getElementById('donutChart').getContext('2d');
-            donutChart = new Chart(donutCtx, {
-                type: 'doughnut',
-                data: {
-                    datasets: [{
-                        data: [0, 2000],
-                        backgroundColor: [
-                            'rgba(139, 92, 246, 0.9)',
-                            'rgba(255, 255, 255, 0.15)'
-                        ],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    cutout: '75%',
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: false }
-                    }
-                }
-            });
+            // Donut Chart - NOW USING SVG (no Chart.js needed)
+            // The SVG donut is updated via updateCalorieDisplay() function
 
             // Weekly Chart
             const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
@@ -2808,19 +2890,11 @@
             // Calories
             const consumed = appState.todayData.calories;
             const goal = appState.settings.dailyGoal;
-            const remaining = Math.max(0, goal - consumed);
+            const remaining = goal - consumed;
             
-            document.getElementById('caloriesConsumed').textContent = consumed;
-            document.getElementById('caloriesGoal').textContent = goal;
-            document.getElementById('caloriesRemaining').textContent = `נותרו: ${remaining}`;
+            // Update new SVG donut display
+            updateCalorieDisplay(consumed, goal);
             
-            // Update donut chart
-            donutChart.data.datasets[0].data = [
-                consumed,
-                Math.max(0, goal - consumed)
-            ];
-            donutChart.update();
-
             // Steps
             document.getElementById('stepsCount').textContent = appState.todayData.steps.toLocaleString();
             const stepsPercent = Math.min(100, (appState.todayData.steps / 10000) * 100);
@@ -2838,6 +2912,40 @@
             }
             if (appState.settings.age) {
                 document.getElementById('ageDisplay').textContent = appState.settings.age + ' שנים';
+            }
+        }
+
+        // New function to update the advanced SVG donut
+        function updateCalorieDisplay(consumed, goal) {
+            const remaining = goal - consumed;
+            
+            // Update Text
+            document.getElementById('caloriesConsumedDisplay').textContent = consumed;
+            
+            const remainingEl = document.getElementById('caloriesRemainingDisplay');
+            if (remaining < 0) {
+                remainingEl.textContent = `עודף: ${Math.abs(remaining)}`;
+                remainingEl.style.color = '#ef4444'; // Red for surplus
+                remainingEl.style.textShadow = '0 0 10px rgba(239, 68, 68, 0.4)';
+            } else {
+                remainingEl.textContent = `נותרו: ${remaining}`;
+                remainingEl.style.color = '#4ade80'; // Green for remaining
+                remainingEl.style.textShadow = '0 0 10px rgba(74, 222, 128, 0.4)';
+            }
+            
+            // Update the Advanced Donut SVG
+            const circle = document.getElementById('calorieDonutCircle');
+            const anim = document.getElementById('donutAnim');
+            if (circle && anim) {
+                const circumference = 722; // 2 * PI * 115
+                const percentage = Math.min(consumed / goal, 1);
+                const offset = circumference - (percentage * circumference);
+                
+                // Update the animation 'to' value so it animates to the correct spot
+                anim.setAttribute('to', offset);
+                
+                // Restart the animation
+                anim.beginElement();
             }
         }
 
