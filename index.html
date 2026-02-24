@@ -1081,7 +1081,7 @@
         .dashboard-chart-svg {
             width: 100%;
             height: auto;
-            max-height: 250px;
+            max-height: 200px;
         }
         .axis-text {
             font-family: 'Assistant', sans-serif;
@@ -1309,7 +1309,7 @@
                 <h2 class="text-3xl font-bold text-white mb-6 text-center" style="font-family: 'Assistant', sans-serif;">דשבורד שבועי</h2>
                 
                 <!-- Week Navigation -->
-                <div class="glass-card p-4 mb-3 flex items-center justify-between">
+                <div class="glass-card p-3 mb-2 flex items-center justify-between">
                     <button onclick="previousWeek()" class="btn-secondary flex-shrink-0">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
@@ -1324,12 +1324,12 @@
                 </div>
 
                 <!-- Weekly Chart -->
-                <div class="glass-card p-6 mb-3">
-                    <div class="text-center mb-2">
+                <div class="glass-card p-4 mb-2">
+                    <div class="text-center mb-1">
                        <span class="text-sm font-semibold text-green-400">TDEE: </span>
                        <span id="tdeeDisplay" class="text-sm font-semibold text-green-400">2000</span>
                     </div>
-                    <div id="weeklyChartSVGContainer" class="relative w-full flex justify-center" style="height: 250px;">
+                    <div id="weeklyChartSVGContainer" class="relative w-full flex justify-center" style="height: 200px;">
                         <!-- Tooltip for hovering over bars -->
                         <div id="chartTooltip" class="chart-tooltip"></div>
                         <svg id="weeklyChartSVG" class="dashboard-chart-svg" viewBox="0 0 370 220" preserveAspectRatio="xMidYMid meet">
@@ -1379,7 +1379,7 @@
                 </div>
 
                 <!-- Weekly Summary -->
-                <div id="weeklySummarySection" class="glass-card p-3 mb-10">
+                <div id="weeklySummarySection" class="glass-card p-3 mb-6">
                     <h3 class="text-base font-bold text-white mb-2">סיכום שבועי</h3>
                     <div class="space-y-1.5">
                         <div class="flex justify-between text-white text-sm">
