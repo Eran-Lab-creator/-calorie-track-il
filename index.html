@@ -2428,9 +2428,28 @@
 
                 // Populate with actual data
                 logs.forEach(log => {
-                    const logDate = new Date(log.date);
+                    // Parse date as LOCAL time (not UTC) to avoid day-shift bug.
+                    // "2026-03-25" → new Date("2026-03-25") is UTC midnight → wrong day in UTC+2/+3.
+                    // Adding "T00:00:00" forces local-time parsing.
+                    const logDate = new Date(log.date + 'T00:00:00');
                     const dayOfWeek = logDate.getDay(); // 0 = Sunday
-                    const weeksDiff = Math.floor((today - logDate) / (7 * 24 * 60 * 60 * 1000));
+                    
+                    // Calculate which week this log belongs to (Sunday-based)
+                    // Find Sunday of the log's week
+                    const logSunday = new Date(logDate);
+                    logSunday.setDate(logDate.getDate() - dayOfWeek);
+                    logSunday.setHours(0, 0, 0, 0);
+                    
+                    // Find Sunday of current week
+                    const todayDayOfWeek = today.getDay();
+                    const todaySunday = new Date(today);
+                    todaySunday.setDate(today.getDate() - todayDayOfWeek);
+                    todaySunday.setHours(0, 0, 0, 0);
+                    
+                    // Calculate weeks difference
+                    const weeksDiff = Math.round((todaySunday - logSunday) / (7 * 24 * 60 * 60 * 1000));
+                    
+                    console.log(`📅 Loading: ${log.date}, day=${dayOfWeek}, weeksDiff=${weeksDiff}, calories=${log.total_calories}`);
                     
                     if (weeksDiff >= 0 && weeksDiff < 52) {
                         appState.weeklyData.weeks[weeksDiff][dayOfWeek] = {
@@ -2806,7 +2825,8 @@
                 calories: appState.todayData.calories,
                 protein: appState.todayData.protein,
                 meals: JSON.parse(JSON.stringify(appState.todayData.meals)), // Deep copy
-                date: today.toISOString()
+                date: today.toISOString(),
+                tdee: appState.settings.dailyGoal || 2000
             };
             
             // Always update the chart - SVG chart is always available
@@ -3595,10 +3615,13 @@
         // Weekly Dashboard
         function updateWeeklyChart() {
             try {
-                // Always check and fix week structure when viewing dashboard
-                fixWeekDataStructure();
-                
+                // Only fix week structure when viewing current week (index 0)
+                // Previous weeks should remain unchanged
                 const weekIndex = appState.weeklyData.currentWeek;
+                if (weekIndex === 0) {
+                    fixWeekDataStructure();
+                }
+                
                 const weekData = appState.weeklyData.weeks[weekIndex] || Array(7).fill({ calories: 0, tdee: 2000 });
                 
                 // Get TDEE value
@@ -3837,6 +3860,14 @@
                 return `${day}/${month}/${year}`;
             };
 
+            console.log('📅 Week Display:', {
+                weekIndex,
+                startDate: format(startDate),
+                endDate: format(endDate),
+                startDateFull: startDate.toDateString(),
+                endDateFull: endDate.toDateString()
+            });
+
             document.getElementById('weekDisplay').textContent = 
                 `${format(startDate)} - ${format(endDate)}`;
         }
@@ -3878,9 +3909,32 @@
             // Show day detail view
             document.getElementById('dayDetailView').classList.remove('hidden');
             
+            // Calculate the correct date based on weekIndex and dayIndex
+            const today = new Date();
+            const todayDayOfWeek = today.getDay(); // 0 = Sunday
+            
+            // Calculate current week's Sunday
+            const currentWeekSunday = new Date(today);
+            currentWeekSunday.setDate(today.getDate() - todayDayOfWeek);
+            currentWeekSunday.setHours(0, 0, 0, 0);
+            
+            // Go back by weekIndex weeks
+            const weekSunday = new Date(currentWeekSunday);
+            weekSunday.setDate(currentWeekSunday.getDate() - (weekIndex * 7));
+            
+            // Add dayIndex days to get the specific day
+            const date = new Date(weekSunday);
+            date.setDate(weekSunday.getDate() + dayIndex);
+            
+            console.log('📅 Day Detail:', {
+                weekIndex,
+                dayIndex,
+                calculatedDate: date.toDateString(),
+                storedDate: dayData.date
+            });
+            
             // Format date and day name
             const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-            const date = new Date(dayData.date);
             const dayName = dayNames[dayIndex];
             const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
             
